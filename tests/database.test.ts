@@ -45,6 +45,7 @@ beforeAll(async () => {
     "202611010001_core.sql",
     "202611010002_commands.sql",
     "202611010004_walker_publications.sql",
+    "202611020005_owner_requests.sql",
   ])
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(`create schema storage;
@@ -650,12 +651,315 @@ describe("PostgreSQL transactions, RLS and full workflows", () => {
     await as(owner);
     expect((await feed()).some((p) => p.id === packPublication)).toBe(true);
   });
+  const secondWalker = "00000000-0000-4000-8000-000000000005";
+  let request: string, requestSlot: string, requestTask: string;
+  const requestData = {
+    title: "周末帮忙遛狗",
+    start_at: "2090-01-01T09:00:00Z",
+    duration: 90,
+    area: "湖边小区",
+    handoff: "私密门牌 7 幢 202",
+    public_notes: "希望慢慢走",
+  };
+  async function requests() {
+    return (
+      await db.query<{ items: any[] }>(
+        "select public.list_walk_requests() items",
+      )
+    ).rows[0].items;
+  }
+  it("expands durations and validates owner-published requests", async () => {
+    await db.exec("reset role");
+    await db.query(`insert into auth.users values($1,'{"consent":true}')`, [
+      secondWalker,
+    ]);
+    await db.query("update public.profiles set role='walker' where id=$1", [
+      secondWalker,
+    ]);
+    await as(walker);
+    expect(
+      (
+        await db.query<any>(
+          "select data from public.settings where id='operations'",
+        )
+      ).rows[0].data.durations,
+    ).toEqual([15, 30, 45, 60, 90, 120]);
+    await expect(
+      cmd("request.publish", { ...requestData, dog_id: dog }),
+    ).rejects.toThrow("只有主人");
+    await as(other);
+    await expect(
+      cmd("request.publish", { ...requestData, dog_id: dog }),
+    ).rejects.toThrow("自己的狗狗");
+    await as(owner);
+    await expect(
+      cmd("request.publish", {
+        ...requestData,
+        dog_id: dog,
+        start_at: "2000-01-01",
+      }),
+    ).rejects.toThrow("未来");
+    await expect(
+      cmd("request.publish", { ...requestData, dog_id: dog, duration: 20 }),
+    ).rejects.toThrow("时长");
+    await expect(
+      cmd("request.publish", { ...requestData, dog_id: dog, handoff: "" }),
+    ).rejects.toThrow("交接地点");
+    request = await cmd("request.publish", {
+      ...requestData,
+      dog_id: dog,
+      owner_id: other,
+    });
+    expect(await cmd("request.publish", { ...requestData, dog_id: dog })).toBe(
+      request,
+    );
+    const b = (
+      await db.query<any>("select * from public.solo_bookings where id=$1", [
+        request,
+      ])
+    ).rows[0];
+    requestSlot = b.slot_id;
+    expect(b.owner_id).toBe(owner);
+    expect(b.status).toBe("requested");
+    const slot = (
+      await db.query<any>("select * from public.service_slots where id=$1", [
+        requestSlot,
+      ])
+    ).rows[0];
+    expect(+new Date(slot.end_at) - +new Date(slot.start_at)).toBe(90 * 60000);
+    await expect(
+      cmd("request.publish", {
+        ...requestData,
+        dog_id: dog,
+        start_at: "2090-01-01T09:30:00Z",
+      }),
+    ).rejects.toThrow("已有需求或预约");
+    expect(await requests()).toEqual([]);
+  });
+  it("exposes only public request details to walkers and blocks booking-slot reuse", async () => {
+    await as(walker);
+    const item = (await requests()).find((r) => r.id === request);
+    expect(item.data.duration).toBe(90);
+    expect(item.data.area).toBe("湖边小区");
+    expect(JSON.stringify(item)).not.toContain("私密门牌");
+    expect(JSON.stringify(item)).not.toContain(dogData.emergency_phone);
+    expect(item.owner_id).toBeUndefined();
+    expect(item.dog_id).toBeUndefined();
+    expect(
+      (
+        await db.query("select * from public.solo_bookings where id=$1", [
+          request,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      JSON.stringify(
+        (
+          await db.query("select * from public.service_slots where id=$1", [
+            requestSlot,
+          ])
+        ).rows,
+      ),
+    ).not.toContain("私密门牌");
+    await as(other);
+    await expect(
+      cmd("solo.book", {
+        dog_id: otherDog,
+        slot_id: requestSlot,
+        duration: 30,
+        handoff: "伪造",
+      }),
+    ).rejects.toThrow("仅支持");
+    await expect(cmd("request.claim", { id: request })).rejects.toThrow(
+      "遛狗师",
+    );
+    await as(admin);
+    await expect(
+      cmd("admin.event.create", { slot_id: requestSlot, pack_id: pack }),
+    ).rejects.toThrow("仅支持");
+    await expect(cmd("admin.slot.close", { id: requestSlot })).rejects.toThrow(
+      "仅支持",
+    );
+  });
+  it("allows exactly one walker to claim and unlocks the task brief after acceptance", async () => {
+    await as(walker);
+    expect(
+      await cmd("request.claim", { id: request, walker_id: secondWalker }),
+    ).toBe(request);
+    expect(await cmd("request.claim", { id: request })).toBe(request);
+    const tasks = (
+      await db.query<any>("select * from public.walk_tasks where solo_id=$1", [
+        request,
+      ])
+    ).rows;
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].walker_id).toBe(walker);
+    expect(tasks[0].status).toBe("accepted");
+    requestTask = tasks[0].id;
+    const brief = (
+      await db.query<any>("select public.task_brief($1) result", [requestTask])
+    ).rows[0].result;
+    expect(brief.handoff).toBe(requestData.handoff);
+    expect(brief.duration).toBe(90);
+    expect(brief.notes).toBe(requestData.public_notes);
+    expect((await requests()).some((r) => r.id === request)).toBe(false);
+    await as(secondWalker);
+    await expect(cmd("request.claim", { id: request })).rejects.toThrow(
+      "已被接单",
+    );
+    await expect(
+      db.query("select public.task_brief($1)", [requestTask]),
+    ).rejects.toThrow("无权");
+    await as(owner);
+    const b = (
+      await db.query<any>("select * from public.solo_bookings where id=$1", [
+        request,
+      ])
+    ).rows[0];
+    expect(b.status).toBe("confirmed");
+    expect(b.walker_id).toBe(walker);
+    await cmd("solo.cancel", { id: request, reason: "更改计划" });
+    await as(walker);
+    expect(
+      (
+        await db.query<any>(
+          "select status from public.walk_tasks where id=$1",
+          [requestTask],
+        )
+      ).rows[0].status,
+    ).toBe("cancelled");
+    await as(admin);
+    expect(
+      (
+        await db.query(
+          "select * from public.walker_reservations where solo_id=$1",
+          [request],
+        )
+      ).rows,
+    ).toHaveLength(0);
+  });
+  it("rejects claims overlapping published availability and succeeds after that offer is withdrawn", async () => {
+    await as(owner);
+    const id = await cmd("request.publish", {
+      ...requestData,
+      dog_id: dog,
+      start_at: "2090-02-01T09:00:00Z",
+      duration: 120,
+    });
+    await as(walker);
+    const offer = await cmd("walk.publish", {
+      kind: "solo",
+      title: "已发布空闲时段",
+      location: "公园",
+      start_at: "2090-02-01T09:30:00Z",
+      end_at: "2090-02-01T10:30:00Z",
+    });
+    await expect(cmd("request.claim", { id })).rejects.toThrow("冲突");
+    expect((await requests()).some((r) => r.id === id)).toBe(true);
+    await cmd("walk.withdraw", { id: offer });
+    await cmd("request.claim", { id });
+    await expect(
+      cmd("walk.publish", {
+        kind: "solo",
+        title: "冲突时段",
+        location: "公园",
+        start_at: "2090-02-01T10:45:00Z",
+        end_at: "2090-02-01T11:15:00Z",
+      }),
+    ).rejects.toThrow("冲突");
+    await as(owner);
+    await cmd("solo.cancel", { id, reason: "取消测试" });
+  });
+  it("lets owners withdraw unclaimed near-term requests and hides expired or unavailable requests", async () => {
+    await as(owner);
+    const id = await cmd("request.publish", {
+      ...requestData,
+      dog_id: dog,
+      start_at: new Date(Date.now() + 3600000).toISOString(),
+      duration: 15,
+    });
+    await as(other);
+    await expect(cmd("solo.cancel", { id, reason: "越权" })).rejects.toThrow(
+      "无权",
+    );
+    await as(owner);
+    await cmd("solo.cancel", { id, reason: "无需散步" });
+    await as(walker);
+    await expect(cmd("request.claim", { id })).rejects.toThrow("取消或过期");
+    expect((await requests()).some((r) => r.id === id)).toBe(false);
+    await as(owner);
+    const exp = await cmd("request.publish", {
+      ...requestData,
+      dog_id: dog,
+      start_at: "2090-03-01T09:00:00Z",
+      duration: 45,
+    });
+    await db.exec("reset role");
+    await db.query("update public.profiles set active=false where id=$1", [
+      owner,
+    ]);
+    await as(walker);
+    expect((await requests()).some((r) => r.id === exp)).toBe(false);
+    await expect(cmd("request.claim", { id: exp })).rejects.toThrow(
+      "账号已不可用",
+    );
+    await db.exec("reset role");
+    await db.query("update public.profiles set active=true where id=$1", [
+      owner,
+    ]);
+    await db.query(
+      "update public.service_slots set start_at=now()-interval '1 hour',end_at=now()-interval '15 minutes' where id=(select slot_id from public.solo_bookings where id=$1)",
+      [exp],
+    );
+    await as(walker);
+    expect((await requests()).some((r) => r.id === exp)).toBe(false);
+    await expect(cmd("request.claim", { id: exp })).rejects.toThrow("过期");
+    await as(admin);
+    await expect(
+      cmd("admin.solo.confirm", { id: exp, walker_id: walker }),
+    ).rejects.toThrow("过期");
+    await as(owner);
+    await cmd("solo.cancel", { id: exp, reason: "过期清理" });
+  });
+  it("honors expanded durations for ordinary bookings while enforcing slot length", async () => {
+    await as(admin);
+    const slot = await cmd("admin.slot.create", {
+      start_at: "2090-04-01T09:00:00Z",
+      end_at: "2090-04-01T09:45:00Z",
+      capacity: 1,
+    });
+    await as(owner);
+    await expect(
+      cmd("solo.book", {
+        dog_id: dog,
+        slot_id: slot,
+        duration: 90,
+        handoff: "门口",
+      }),
+    ).rejects.toThrow("时长");
+    const id = await cmd("solo.book", {
+      dog_id: dog,
+      slot_id: slot,
+      duration: 45,
+      handoff: "门口",
+    });
+    expect(id).toBeTruthy();
+    await expect(
+      db.query("select public.command_v2('request.claim','{}')"),
+    ).rejects.toThrow("permission");
+    await expect(
+      db.query("select public.task_brief_v1($1)", [requestTask]),
+    ).rejects.toThrow("permission");
+  });
   it("does not expose private helper functions or anonymous commands", async () => {
     await as(owner);
     await expect(
       db.query("select public.notify($1,$2,$3)", [other, "fake", dog]),
     ).rejects.toThrow("permission");
     await db.exec("reset role; set role anon");
+    await expect(
+      db.query("select public.list_walk_requests()"),
+    ).rejects.toThrow("permission");
     await expect(
       db.query("select public.list_walk_activities()"),
     ).rejects.toThrow("permission");

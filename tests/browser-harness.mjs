@@ -14,6 +14,7 @@ for (const f of [
   "202611010001_core.sql",
   "202611010002_commands.sql",
   "202611010004_walker_publications.sql",
+  "202611020005_owner_requests.sql",
 ])
   await db.exec(
     readFileSync(
@@ -190,6 +191,11 @@ async function handle(req, res) {
     if (url.pathname === "/rest/v1/rpc/list_walk_activities")
       return send(
         (await db.query("select public.list_walk_activities() result")).rows[0]
+          .result,
+      );
+    if (url.pathname === "/rest/v1/rpc/list_walk_requests")
+      return send(
+        (await db.query("select public.list_walk_requests() result")).rows[0]
           .result,
       );
     const table = url.pathname.split("/").pop();

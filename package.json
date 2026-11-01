@@ -15,7 +15,8 @@
     "build:mobile": "npm run build -w @dogo/mobile",
     "test:browser": "node tests/browser-smoke.mjs",
     "test:publications": "node tests/walker-publications.mjs",
-    "test:preview": "node tests/preview-auth.mjs"
+    "test:preview": "node tests/preview-auth.mjs",
+    "test:requests": "node tests/owner-requests.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",

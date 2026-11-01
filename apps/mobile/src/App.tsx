@@ -48,7 +48,9 @@ type Field = {
   type?: "number" | "password" | "email" | "long" | "datetime";
   optional?: boolean;
   value?: string;
-  options?: { value: string; label: string }[];
+  options?:
+    | { value: string; label: string }[]
+    | ((values: Record<string, string>) => { value: string; label: string }[]);
 };
 const f = (name: string, label: string, type?: Field["type"]): Field => ({
   name,
@@ -130,10 +132,31 @@ function Form({
     ),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  function setField(name: string, value: string) {
+    const next = { ...v, [name]: value };
+    for (const field of fields) {
+      if (
+        typeof field.options === "function" &&
+        !field.options(next).some((o) => o.value === next[field.name])
+      )
+        next[field.name] = "";
+    }
+    setV(next);
+  }
   async function send() {
     setError("");
     if (fields.some((f) => !f.optional && !v[f.name]?.trim())) {
       setError("请完整填写必填信息");
+      return;
+    }
+    if (
+      fields.some(
+        (f) =>
+          typeof f.options === "function" &&
+          !f.options(v).some((o) => o.value === v[f.name]),
+      )
+    ) {
+      setError("可选项已变更，请重新选择散步时长");
       return;
     }
     setBusy(true);
@@ -147,76 +170,82 @@ function Form({
   }
   return (
     <View style={{ gap: 16 }}>
-      {fields.map((f) => (
-        <View key={f.name}>
-          <Text style={s.label}>
-            {f.label}
-            {f.optional ? "（选填）" : ""}
-          </Text>
-          {f.options ? (
-            <View style={s.wrap}>
-              {f.options.map((o) => (
-                <Pressable
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: v[f.name] === o.value }}
-                  key={o.value}
-                  onPress={() => setV({ ...v, [f.name]: o.value })}
-                  style={[s.choice, v[f.name] === o.value && s.choiceOn]}
-                >
-                  <Text
-                    style={{ color: v[f.name] === o.value ? c.green : c.muted }}
+      {fields.map((f) => {
+        const options =
+          typeof f.options === "function" ? f.options(v) : f.options;
+        return (
+          <View key={f.name}>
+            <Text style={s.label}>
+              {f.label}
+              {f.optional ? "（选填）" : ""}
+            </Text>
+            {options ? (
+              <View style={s.wrap}>
+                {options.map((o) => (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: v[f.name] === o.value }}
+                    key={o.value}
+                    onPress={() => setField(f.name, o.value)}
+                    style={[s.choice, v[f.name] === o.value && s.choiceOn]}
                   >
-                    {o.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : f.type === "datetime" && Platform.OS === "web" ? (
-            <input
-              type="datetime-local"
-              aria-label={f.label}
-              value={v[f.name] ?? ""}
-              onChange={(e) => setV({ ...v, [f.name]: e.target.value })}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: 16,
-                border: "1px solid #DCE3D3",
-                borderRadius: 14,
-                fontSize: 16,
-                background: "#FAFBF7",
-                color: c.ink,
-              }}
-            />
-          ) : (
-            <TextInput
-              placeholder={
-                f.type === "datetime" ? "例如 2026-11-10 09:00" : undefined
-              }
-              accessibilityLabel={f.label}
-              value={v[f.name] ?? ""}
-              onChangeText={(x) => setV({ ...v, [f.name]: x })}
-              style={[
-                s.input,
-                f.type === "long" && {
-                  minHeight: 90,
-                  textAlignVertical: "top",
-                },
-              ]}
-              multiline={f.type === "long"}
-              secureTextEntry={f.type === "password"}
-              autoCapitalize={f.type === "email" ? "none" : "sentences"}
-              keyboardType={
-                f.type === "number"
-                  ? "decimal-pad"
-                  : f.type === "email"
-                    ? "email-address"
-                    : "default"
-              }
-            />
-          )}
-        </View>
-      ))}
+                    <Text
+                      style={{
+                        color: v[f.name] === o.value ? c.green : c.muted,
+                      }}
+                    >
+                      {o.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : f.type === "datetime" && Platform.OS === "web" ? (
+              <input
+                type="datetime-local"
+                aria-label={f.label}
+                value={v[f.name] ?? ""}
+                onChange={(e) => setV({ ...v, [f.name]: e.target.value })}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: 16,
+                  border: "1px solid #DCE3D3",
+                  borderRadius: 14,
+                  fontSize: 16,
+                  background: "#FAFBF7",
+                  color: c.ink,
+                }}
+              />
+            ) : (
+              <TextInput
+                placeholder={
+                  f.type === "datetime" ? "例如 2026-11-10 09:00" : undefined
+                }
+                accessibilityLabel={f.label}
+                value={v[f.name] ?? ""}
+                onChangeText={(x) => setV({ ...v, [f.name]: x })}
+                style={[
+                  s.input,
+                  f.type === "long" && {
+                    minHeight: 90,
+                    textAlignVertical: "top",
+                  },
+                ]}
+                multiline={f.type === "long"}
+                secureTextEntry={f.type === "password"}
+                autoCapitalize={f.type === "email" ? "none" : "sentences"}
+                keyboardType={
+                  f.type === "number"
+                    ? "decimal-pad"
+                    : f.type === "email"
+                      ? "email-address"
+                      : "default"
+                }
+              />
+            )}
+          </View>
+        );
+      })}
       {!!error && (
         <Text accessibilityRole="alert" style={s.error}>
           {error}
@@ -348,7 +377,7 @@ export default function App() {
     );
   }, [params.kind, page]);
   const isBooking = ["book", "solo", "packs"].includes(page);
-  const activeTab = isBooking ? "book" : page;
+  const activeTab = isBooking || page === "request" ? "book" : page;
   const register = !isDemo && registerRequested;
   const {
     selectedDog,
@@ -427,12 +456,15 @@ export default function App() {
     dog = dogs.find((d) => d.id === selectedDog),
     definition = store.questionnaire_definitions.find((q) => q.active),
     questions: Question[] = definition?.data.questions ?? [];
+  const durations: number[] = store.settings[0]?.data.durations ?? [
+    15, 30, 45, 60, 90, 120,
+  ];
   const tabs = isWalker
     ? [
         ["home", "工作台", "⌂"],
         ["tasks", "任务", "↗"],
         ["publish", "发布时段", "+"],
-        ["notifications", "消息", "○"],
+        ["requests", "需求广场", "○"],
         ["profile", "我的", "♧"],
       ]
     : [
@@ -515,6 +547,8 @@ export default function App() {
     packs: "预约一次好好散步",
     activities: "已有遛狗活动",
     publish: "发布你的散步时段",
+    request: "发布遛狗需求",
+    requests: "主人需求广场",
     orders: "我的订单",
     tasks: "我的服务任务",
     notifications: "消息中心",
@@ -723,6 +757,9 @@ export default function App() {
                         </Button>
                         <Button secondary onPress={() => go("publish")}>
                           发布我的空闲时段
+                        </Button>
+                        <Button secondary onPress={() => go("requests")}>
+                          看看主人遛狗需求
                         </Button>
                       </Card>
                       <Text style={s.caption}>
@@ -1107,6 +1144,22 @@ export default function App() {
                   <Button onPress={() => begin()}>开始一次新测评</Button>
                 </>
               )}
+              {(isBooking || page === "request") && !isWalker && (
+                <Card tint>
+                  <Text style={s.h2}>时间由你来定</Text>
+                  <Text style={s.body}>
+                    没有合适的活动时段？发布你需要的散步时间，等待遛狗师接单。
+                  </Text>
+                  {page !== "request" && (
+                    <Button onPress={() => go("request")}>发布遛狗需求</Button>
+                  )}
+                  {page === "request" && (
+                    <Button secondary onPress={() => go("book")}>
+                      查看可预约时段
+                    </Button>
+                  )}
+                </Card>
+              )}
               {isBooking && !isWalker && (
                 <View style={s.wrap}>
                   <Button
@@ -1128,7 +1181,7 @@ export default function App() {
                   <Card tint>
                     <Text style={s.h2}>专属它的散步时光</Text>
                     <Text style={s.body}>
-                      30 / 60 分钟 · 专属陪伴 · 双方交接
+                      {durations.join(" / ")} 分钟 · 专属陪伴 · 双方交接
                     </Text>
                     <Text style={s.caption}>
                       服务区域：{store.settings[0]?.data.area ?? "试点服务区"}
@@ -1150,6 +1203,7 @@ export default function App() {
                               .filter(
                                 (x) =>
                                   x.status === "open" &&
+                                  x.data.source !== "owner_request" &&
                                   new Date(x.start_at!).getTime() >
                                     Date.now() &&
                                   !store.pack_events.some(
@@ -1164,12 +1218,22 @@ export default function App() {
                           {
                             name: "duration",
                             label: "散步时长",
-                            options: (
-                              store.settings[0]?.data.durations ?? [30, 60]
-                            ).map((n: number) => ({
-                              value: String(n),
-                              label: `${n} 分钟`,
-                            })),
+                            options: (values) => {
+                              const slot = store.service_slots.find(
+                                (x) => x.id === values.slot_id,
+                              );
+                              const available = slot
+                                ? (new Date(slot.end_at!).getTime() -
+                                    new Date(slot.start_at!).getTime()) /
+                                  60000
+                                : Infinity;
+                              return durations
+                                .filter((n) => n <= available)
+                                .map((n) => ({
+                                  value: String(n),
+                                  label: `${n} 分钟`,
+                                }));
+                            },
                           },
                           {
                             ...f(
@@ -1319,6 +1383,100 @@ export default function App() {
                           ))}
                       </Card>
                     ))}
+                </>
+              )}
+              {page === "request" &&
+                !isWalker &&
+                (!dogs.length ? (
+                  <Button onPress={() => go("dogs")}>先添加狗狗档案</Button>
+                ) : (
+                  <Card>
+                    <Form
+                      fields={[
+                        dogField,
+                        f("title", "需求标题"),
+                        f("start_at", "希望开始时间", "datetime"),
+                        {
+                          name: "duration",
+                          label: "需要遛狗多久",
+                          value: "30",
+                          options: durations.map((n) => ({
+                            value: String(n),
+                            label: `${n} 分钟`,
+                          })),
+                        },
+                        f("area", "公开服务区域（如小区或公园）"),
+                        f("handoff", "详细交接地点（接单后可见）"),
+                        {
+                          ...f("public_notes", "公开需求备注", "long"),
+                          optional: true,
+                        },
+                      ]}
+                      label="发布需求，等待接单"
+                      submit={async (v) => {
+                        const start = new Date(v.start_at.replace(" ", "T"));
+                        if (!Number.isFinite(start.getTime()))
+                          throw new Error("请填写有效的开始时间");
+                        await run("request.publish", {
+                          ...v,
+                          start_at: start.toISOString(),
+                          duration: Number(v.duration),
+                        });
+                        go("orders");
+                      }}
+                    />
+                    <Text style={s.caption}>
+                      需求标题、区域、备注和狗狗昵称、品种、体重会展示给遛狗师，请不要在公开备注填写电话或门牌号。结束时间由开始时间与时长计算；未接单前可随时撤回。
+                    </Text>
+                  </Card>
+                ))}
+              {page === "requests" && isWalker && (
+                <>
+                  <Card tint>
+                    <Text style={s.h2}>找到适合你的下一段散步</Text>
+                    <Text style={s.body}>
+                      这里展示主人发布、尚未被接单的需求。确认时间和区域合适后接单，详细交接资料会加入你的任务。
+                    </Text>
+                    <Button secondary onPress={() => safe(refresh)}>
+                      刷新需求
+                    </Button>
+                  </Card>
+                  {!store.walk_requests.length && (
+                    <Card>
+                      <Text style={s.body}>
+                        暂时没有待接单需求，稍后再来看看。
+                      </Text>
+                    </Card>
+                  )}
+                  {store.walk_requests.map((r) => (
+                    <Card key={r.id}>
+                      <Text style={s.h2}>{r.data.title}</Text>
+                      <Text style={s.body}>
+                        {date(r.start_at)} — {date(r.end_at)} ·{" "}
+                        {r.data.duration} 分钟
+                      </Text>
+                      <Text style={s.body}>
+                        {r.data.area} · {r.data.nickname} ·{" "}
+                        {r.data.breed || "品种未填写"} · {r.data.weight} kg
+                      </Text>
+                      {!!r.data.public_notes && (
+                        <Text style={s.body}>{r.data.public_notes}</Text>
+                      )}
+                      <Button
+                        onPress={() =>
+                          safe(async () => {
+                            await run("request.claim", { id: r.id });
+                            go("tasks");
+                          })
+                        }
+                      >
+                        确认接下这个需求
+                      </Button>
+                      <Text style={s.caption}>
+                        接单即确认服务，请确保你有足够的往返和交接时间。
+                      </Text>
+                    </Card>
+                  ))}
                 </>
               )}
               {page === "activities" && !isWalker && (
@@ -1537,9 +1695,21 @@ export default function App() {
                             {dogName(store, b.dog_id)} ·{" "}
                             {b.event_id ? "Pack" : "Solo"} Walk
                           </Text>
-                          <Pill status={b.status} />
+                          <Pill
+                            status={
+                              b.data?.source === "owner_request" &&
+                              b.status === "requested"
+                                ? "等待遛狗师接单"
+                                : b.status
+                            }
+                          />
                         </View>
                         <Text style={s.caption}>订单 {b.id.slice(0, 8)}</Text>
+                        {b.data?.source === "owner_request" && (
+                          <Text style={s.body}>
+                            我的需求：{b.data.title} · {b.data.duration} 分钟
+                          </Text>
+                        )}
                         <Text style={s.body}>
                           {date(
                             store.service_slots.find(
@@ -1557,13 +1727,19 @@ export default function App() {
                           ["requested", "confirmed"].includes(b.status!) && (
                             <>
                               <Text style={s.caption}>
-                                开始前{" "}
-                                {store.settings[0]?.data.cancel_hours ?? 2}{" "}
-                                小时可自助取消。
+                                {b.data?.source === "owner_request" &&
+                                b.status === "requested"
+                                  ? "尚未接单，可随时撤回需求。"
+                                  : `开始前 ${store.settings[0]?.data.cancel_hours ?? 2} 小时可自助取消。`}
                               </Text>
                               <Form
                                 fields={[f("reason", "取消原因")]}
-                                label="取消预约"
+                                label={
+                                  b.data?.source === "owner_request" &&
+                                  b.status === "requested"
+                                    ? "撤回需求"
+                                    : "取消预约"
+                                }
                                 submit={async (v) => {
                                   await run("solo.cancel", { id: b.id, ...v });
                                 }}
@@ -1679,6 +1855,21 @@ export default function App() {
                       {briefs[t.id] && (
                         <View style={s.subcard}>
                           <Text style={s.h2}>{briefs[t.id].nickname}</Text>
+                          {!!briefs[t.id].title && (
+                            <Text style={s.h2}>{briefs[t.id].title}</Text>
+                          )}
+                          <Text style={s.body}>
+                            {date(briefs[t.id].start_at)} —{" "}
+                            {date(briefs[t.id].end_at)}
+                            {briefs[t.id].duration
+                              ? ` · ${briefs[t.id].duration} 分钟`
+                              : ""}
+                          </Text>
+                          {!!briefs[t.id].notes && (
+                            <Text style={s.body}>
+                              备注：{briefs[t.id].notes}
+                            </Text>
+                          )}
                           <Text style={s.body}>
                             交接点：{briefs[t.id].handoff}
                             <Text>

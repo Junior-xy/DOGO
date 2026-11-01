@@ -80,10 +80,13 @@ export const tables = [
   "privacy_requests",
   "settings",
 ] as const;
-export type Store = Record<(typeof tables)[number] | "walk_activities", Row[]>;
+export type Store = Record<
+  (typeof tables)[number] | "walk_activities" | "walk_requests",
+  Row[]
+>;
 export const emptyStore = () =>
   Object.fromEntries(
-    [...tables, "walk_activities"].map((t) => [t, []]),
+    [...tables, "walk_activities", "walk_requests"].map((t) => [t, []]),
   ) as unknown as Store;
 export function client(
   url?: string,
@@ -110,9 +113,13 @@ export async function snapshot(api: SupabaseClient): Promise<Store> {
   );
   const { data: activities, error } = await api.rpc("list_walk_activities");
   if (error) throw new Error(error.message);
+  const { data: requests, error: requestError } =
+    await api.rpc("list_walk_requests");
+  if (requestError) throw new Error(requestError.message);
   return {
     ...Object.fromEntries(results),
     walk_activities: activities ?? [],
+    walk_requests: requests ?? [],
   } as Store;
 }
 export async function command(
