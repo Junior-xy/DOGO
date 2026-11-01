@@ -10,7 +10,11 @@ const db = new PGlite();
 await db.exec(
   `create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key,raw_user_meta_data jsonb); create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$; grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;`,
 );
-for (const f of ["202611010001_core.sql", "202611010002_commands.sql"])
+for (const f of [
+  "202611010001_core.sql",
+  "202611010002_commands.sql",
+  "202611010004_walker_publications.sql",
+])
   await db.exec(
     readFileSync(
       new URL("../supabase/migrations/" + f, import.meta.url),
@@ -76,7 +80,7 @@ const slot = await cmd("admin.slot.create", {
   capacity: 3,
   label: "校园公园",
 });
-await cmd("admin.pack.create", {
+const pack = await cmd("admin.pack.create", {
   name: "草地漫步小队",
   location: "校园公园南门",
   capacity: 4,
@@ -92,6 +96,23 @@ await cmd("solo.book", {
   handoff: "公园南门",
   notes: "喜欢慢慢闻闻草地",
 });
+await as(users.walker.id);
+for (const [offset, kind, title] of [
+  [4, "solo", "午后公园慢步"],
+  [5, "pack", "草地小队周末同行"],
+]) {
+  const starts = new Date(+start + offset * 86400000);
+  await cmd("walk.publish", {
+    kind,
+    title,
+    location: "校园公园南门",
+    description: "沿着林荫步道，享受一段轻松的散步时光。",
+    pack_id: pack,
+    capacity: 4,
+    start_at: starts.toISOString(),
+    end_at: new Date(+starts + 3600000).toISOString(),
+  });
+}
 await db.exec("reset role");
 let queue = Promise.resolve();
 const server = createServer((req, res) => {
@@ -166,8 +187,14 @@ async function handle(req, res) {
       ]);
       return send(r.rows[0].result);
     }
+    if (url.pathname === "/rest/v1/rpc/list_walk_activities")
+      return send(
+        (await db.query("select public.list_walk_activities() result")).rows[0]
+          .result,
+      );
     const table = url.pathname.split("/").pop();
     const allowed = [
+      "walk_publications",
       "profiles",
       "dogs",
       "questionnaire_definitions",

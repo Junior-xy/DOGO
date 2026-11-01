@@ -45,7 +45,7 @@ const c = tokens.color;
 type Field = {
   name: string;
   label: string;
-  type?: "number" | "password" | "email" | "long";
+  type?: "number" | "password" | "email" | "long" | "datetime";
   optional?: boolean;
   value?: string;
   options?: { value: string; label: string }[];
@@ -171,8 +171,28 @@ function Form({
                 </Pressable>
               ))}
             </View>
+          ) : f.type === "datetime" && Platform.OS === "web" ? (
+            <input
+              type="datetime-local"
+              aria-label={f.label}
+              value={v[f.name] ?? ""}
+              onChange={(e) => setV({ ...v, [f.name]: e.target.value })}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: 16,
+                border: "1px solid #DCE3D3",
+                borderRadius: 14,
+                fontSize: 16,
+                background: "#FAFBF7",
+                color: c.ink,
+              }}
+            />
           ) : (
             <TextInput
+              placeholder={
+                f.type === "datetime" ? "例如 2026-11-10 09:00" : undefined
+              }
               accessibilityLabel={f.label}
               value={v[f.name] ?? ""}
               onChangeText={(x) => setV({ ...v, [f.name]: x })}
@@ -301,7 +321,12 @@ function Result({ data, nickname }: { data: any; nickname: string }) {
 }
 export default function App() {
   const router = useRouter(),
-    params = useLocalSearchParams<{ screen?: string }>(),
+    params = useLocalSearchParams<{
+      screen?: string;
+      kind?: string;
+      slot?: string;
+      pack?: string;
+    }>(),
     page = params.screen ?? "home";
   const [store, setStore] = useState<Store>(emptyStore),
     [uid, setUid] = useState(""),
@@ -313,6 +338,17 @@ export default function App() {
     [editDog, setEditDog] = useState<Row | null>(null),
     [questionPage, setQuestionPage] = useState(0),
     [briefs, setBriefs] = useState<Record<string, any>>({});
+  const [bookingKind, setBookingKind] = useState(
+    params.kind === "pack" || page === "packs" ? "pack" : "solo",
+  );
+  const [publishKind, setPublishKind] = useState("solo");
+  useEffect(() => {
+    setBookingKind(
+      params.kind === "pack" || page === "packs" ? "pack" : "solo",
+    );
+  }, [params.kind, page]);
+  const isBooking = ["book", "solo", "packs"].includes(page);
+  const activeTab = isBooking ? "book" : page;
   const register = !isDemo && registerRequested;
   const {
     selectedDog,
@@ -395,18 +431,24 @@ export default function App() {
     ? [
         ["home", "工作台", "⌂"],
         ["tasks", "任务", "↗"],
+        ["publish", "发布时段", "+"],
         ["notifications", "消息", "○"],
         ["profile", "我的", "♧"],
       ]
     : [
         ["home", "首页", "⌂"],
-        ["solo", "预约", "↗"],
-        ["packs", "Pack", "♧"],
+        ["book", "预约", "↗"],
+        ["activities", "遛狗活动", "♧"],
         ["orders", "订单", "▤"],
         ["profile", "我的", "○"],
       ];
   function go(screen: string) {
-    router.push(`/${screen}` as any);
+    if (screen === "solo" || screen === "packs") {
+      router.push({
+        pathname: "/[screen]",
+        params: { screen: "book", kind: screen === "packs" ? "pack" : "solo" },
+      });
+    } else router.push(`/${screen}` as any);
   }
   async function run(action: string, payload: Record<string, unknown>) {
     const result = await command(api, action, payload);
@@ -468,8 +510,11 @@ export default function App() {
     dogs: "我的狗狗",
     assessment: "Dogo Ti 性格测试",
     results: "Dogo Ti 结果",
-    solo: "预约 Solo Walk",
-    packs: "找到它的散步小队",
+    book: "预约一次好好散步",
+    solo: "预约一次好好散步",
+    packs: "预约一次好好散步",
+    activities: "已有遛狗活动",
+    publish: "发布你的散步时段",
     orders: "我的订单",
     tasks: "我的服务任务",
     notifications: "消息中心",
@@ -675,6 +720,9 @@ export default function App() {
                         </Text>
                         <Button onPress={() => go("tasks")}>
                           打开任务台 →
+                        </Button>
+                        <Button secondary onPress={() => go("publish")}>
+                          发布我的空闲时段
                         </Button>
                       </Card>
                       <Text style={s.caption}>
@@ -1059,16 +1107,32 @@ export default function App() {
                   <Button onPress={() => begin()}>开始一次新测评</Button>
                 </>
               )}
-              {page === "solo" && (
+              {isBooking && !isWalker && (
+                <View style={s.wrap}>
+                  <Button
+                    secondary={bookingKind !== "solo"}
+                    onPress={() => setBookingKind("solo")}
+                  >
+                    单独散步 · Solo
+                  </Button>
+                  <Button
+                    secondary={bookingKind !== "pack"}
+                    onPress={() => setBookingKind("pack")}
+                  >
+                    结伴散步 · Pack
+                  </Button>
+                </View>
+              )}
+              {isBooking && !isWalker && bookingKind === "solo" && (
                 <>
                   <Card tint>
                     <Text style={s.h2}>专属它的散步时光</Text>
                     <Text style={s.body}>
-                      30 / 60 分钟 · 人工确认遛狗师 · 双方交接
+                      30 / 60 分钟 · 专属陪伴 · 双方交接
                     </Text>
                     <Text style={s.caption}>
                       服务区域：{store.settings[0]?.data.area ?? "试点服务区"}
-                      。预约后等待运营确认；暂不提供在线支付。
+                      。遛狗师发布的时段预约成功后直接确认，其他时段由运营确认；暂不提供在线支付。
                     </Text>
                   </Card>
                   {!dogs.length ? (
@@ -1081,6 +1145,7 @@ export default function App() {
                           {
                             name: "slot_id",
                             label: "可预约时段",
+                            value: params.slot,
                             options: store.service_slots
                               .filter(
                                 (x) =>
@@ -1093,7 +1158,7 @@ export default function App() {
                               )
                               .map((x) => ({
                                 value: x.id,
-                                label: `${date(x.start_at)} — ${date(x.end_at)}`,
+                                label: `${date(x.start_at)} — ${date(x.end_at)}${x.data.publisher_id ? " · 遛狗师发布" : " · 运营安排"}`,
                               })),
                           },
                           {
@@ -1106,13 +1171,22 @@ export default function App() {
                               label: `${n} 分钟`,
                             })),
                           },
-                          f("handoff", "交接地点"),
+                          {
+                            ...f(
+                              "handoff",
+                              "交接地点（遛狗师时段以活动地点为准）",
+                            ),
+                            value: store.walk_activities.find(
+                              (a) => a.slot_id === params.slot,
+                            )?.data.location,
+                            optional: true,
+                          },
                           {
                             ...f("notes", "给遛狗师的备注", "long"),
                             optional: true,
                           },
                         ]}
-                        label="提交预约申请"
+                        label="提交预约"
                         submit={async (v) => {
                           await run("solo.book", {
                             ...v,
@@ -1122,13 +1196,13 @@ export default function App() {
                         }}
                       />
                       <Text style={s.caption}>
-                        名额在提交时实时核验，最终以提交结果为准。
+                        运营安排的时段请填写交接地点；遛狗师发布的时段使用活动集合地点。名额在提交时实时核验。
                       </Text>
                     </Card>
                   )}
                 </>
               )}
-              {page === "packs" && (
+              {isBooking && !isWalker && bookingKind === "pack" && (
                 <>
                   <Text style={s.body}>
                     先认识，再同行。每只狗狗通过人工安全审核后，才能报名对应小队的活动。
@@ -1140,95 +1214,308 @@ export default function App() {
                       </Text>
                     </Card>
                   )}
-                  {store.packs.map((p) => (
-                    <Card key={p.id}>
+                  {store.packs
+                    .filter(
+                      (p) =>
+                        p.status === "open" &&
+                        (!params.pack || p.id === params.pack),
+                    )
+                    .map((p) => (
+                      <Card key={p.id}>
+                        <View style={s.row}>
+                          <Text style={s.h2}>{p.name}</Text>
+                          <Text style={s.pill}>最多 {p.capacity} 只</Text>
+                        </View>
+                        <Text style={s.body}>
+                          {p.location} · {p.data.description}
+                        </Text>
+                        <Text style={s.caption}>
+                          参与条件：{p.data.requirements}
+                        </Text>
+                        <Form
+                          fields={[
+                            dogField,
+                            {
+                              ...f("notes", "补充说明", "long"),
+                              optional: true,
+                            },
+                          ]}
+                          label="申请加入，等待审核"
+                          submit={async (v) => {
+                            await run("pack.apply", { ...v, pack_id: p.id });
+                          }}
+                        />
+                        {store.pack_applications
+                          .filter((a) => a.pack_id === p.id)
+                          .map((a) => (
+                            <View style={s.subcard} key={a.id}>
+                              <Text style={s.h2}>
+                                {dogName(store, a.dog_id)} 的申请
+                              </Text>
+                              <Pill status={a.status} />
+                              <Text style={s.body}>
+                                {a.data.review_reason ??
+                                  "运营会认真了解它的情况，请耐心等待。"}
+                              </Text>
+                              {store.intro_meetings
+                                .filter((m) => m.application_id === a.id)
+                                .map((m) => (
+                                  <Text style={s.body} key={m.id}>
+                                    首次见面：{date(m.data.scheduled_at)}{" "}
+                                    {m.data.outcome ?? ""}
+                                  </Text>
+                                ))}
+                            </View>
+                          ))}
+                        {store.pack_events
+                          .filter(
+                            (e) =>
+                              e.pack_id === p.id &&
+                              e.status === "open" &&
+                              new Date(
+                                store.service_slots.find(
+                                  (slot) => slot.id === e.slot_id,
+                                )?.start_at ?? 0,
+                              ).getTime() > Date.now(),
+                          )
+                          .map((e) => (
+                            <View style={s.subcard} key={e.id}>
+                              <Text style={s.h2}>下一次一起出发</Text>
+                              <Text style={s.body}>
+                                {date(
+                                  store.service_slots.find(
+                                    (s) => s.id === e.slot_id,
+                                  )?.start_at,
+                                )}
+                              </Text>
+                              <Form
+                                fields={[
+                                  {
+                                    ...dogField,
+                                    options: dogs
+                                      .filter((d) =>
+                                        store.pack_memberships.some(
+                                          (m) =>
+                                            m.pack_id === p.id &&
+                                            m.dog_id === d.id,
+                                        ),
+                                      )
+                                      .map((d) => ({
+                                        value: d.id,
+                                        label: d.data.nickname,
+                                      })),
+                                  },
+                                ]}
+                                label="报名这次活动"
+                                submit={async (v) => {
+                                  await run("pack.book", {
+                                    ...v,
+                                    event_id: e.id,
+                                  });
+                                  go("orders");
+                                }}
+                              />
+                            </View>
+                          ))}
+                      </Card>
+                    ))}
+                </>
+              )}
+              {page === "activities" && !isWalker && (
+                <>
+                  <Card tint>
+                    <Text style={s.h2}>挑一个时间，一起出发</Text>
+                    <Text style={s.body}>
+                      这里是遛狗师发布的散步时段和小队活动。选好活动后，为你的狗狗预约。
+                    </Text>
+                    <Button secondary onPress={() => safe(refresh)}>
+                      刷新活动
+                    </Button>
+                  </Card>
+                  {!store.walk_activities.length && (
+                    <Card>
+                      <Text style={s.body}>
+                        暂时没有可预约活动，稍后再来看看，也可以到“预约”提交散步申请。
+                      </Text>
+                    </Card>
+                  )}
+                  {store.walk_activities.map((a) => (
+                    <Card key={a.id}>
                       <View style={s.row}>
-                        <Text style={s.h2}>{p.name}</Text>
-                        <Text style={s.pill}>最多 {p.capacity} 只</Text>
+                        <Text style={s.h2}>{a.data.title}</Text>
+                        <Pill
+                          status={a.kind === "pack" ? "结伴散步" : "单独散步"}
+                        />
                       </View>
                       <Text style={s.body}>
-                        {p.location} · {p.data.description}
+                        {date(a.start_at)} — {date(a.end_at)}
                       </Text>
+                      <Text style={s.body}>
+                        遛狗师：{a.data.walker_name} · {a.data.location}
+                      </Text>
+                      {!!a.data.description && (
+                        <Text style={s.body}>{a.data.description}</Text>
+                      )}
                       <Text style={s.caption}>
-                        参与条件：{p.data.requirements}
+                        剩余 {a.remaining} / {a.capacity} 个名额
+                        {a.kind === "pack"
+                          ? " · 需先通过对应小队的安全审核"
+                          : " · 预约成功即确认"}
                       </Text>
-                      <Form
-                        fields={[
-                          dogField,
-                          { ...f("notes", "补充说明", "long"), optional: true },
-                        ]}
-                        label="申请加入，等待审核"
-                        submit={async (v) => {
-                          await run("pack.apply", { ...v, pack_id: p.id });
-                        }}
-                      />
-                      {store.pack_applications
-                        .filter((a) => a.pack_id === p.id)
-                        .map((a) => (
-                          <View style={s.subcard} key={a.id}>
-                            <Text style={s.h2}>
-                              {dogName(store, a.dog_id)} 的申请
-                            </Text>
-                            <Pill status={a.status} />
-                            <Text style={s.body}>
-                              {a.data.review_reason ??
-                                "运营会认真了解它的情况，请耐心等待。"}
-                            </Text>
-                            {store.intro_meetings
-                              .filter((m) => m.application_id === a.id)
-                              .map((m) => (
-                                <Text style={s.body} key={m.id}>
-                                  首次见面：{date(m.data.scheduled_at)}{" "}
-                                  {m.data.outcome ?? ""}
-                                </Text>
-                              ))}
-                          </View>
-                        ))}
-                      {store.pack_events
-                        .filter(
-                          (e) => e.pack_id === p.id && e.status === "open",
-                        )
-                        .map((e) => (
-                          <View style={s.subcard} key={e.id}>
-                            <Text style={s.h2}>下一次一起出发</Text>
-                            <Text style={s.body}>
-                              {date(
-                                store.service_slots.find(
-                                  (s) => s.id === e.slot_id,
-                                )?.start_at,
-                              )}
-                            </Text>
-                            <Form
-                              fields={[
-                                {
-                                  ...dogField,
-                                  options: dogs
-                                    .filter((d) =>
-                                      store.pack_memberships.some(
-                                        (m) =>
-                                          m.pack_id === p.id &&
-                                          m.dog_id === d.id,
-                                      ),
-                                    )
-                                    .map((d) => ({
-                                      value: d.id,
-                                      label: d.data.nickname,
-                                    })),
-                                },
-                              ]}
-                              label="报名这次活动"
-                              submit={async (v) => {
-                                await run("pack.book", {
-                                  ...v,
-                                  event_id: e.id,
-                                });
-                                go("orders");
-                              }}
-                            />
-                          </View>
-                        ))}
+                      <Button
+                        disabled={!a.remaining}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/[screen]",
+                            params: {
+                              screen: "book",
+                              kind: a.kind,
+                              slot: a.slot_id,
+                              ...(a.pack_id ? { pack: a.pack_id } : {}),
+                            },
+                          })
+                        }
+                      >
+                        {a.remaining ? "预约这个活动" : "名额已满"}
+                      </Button>
                     </Card>
                   ))}
+                </>
+              )}
+              {page === "publish" && isWalker && (
+                <>
+                  <Card tint>
+                    <Text style={s.h2}>把空闲时间变成一段好时光</Text>
+                    <Text style={s.body}>
+                      发布你可以服务的时间和地点，主人可在“遛狗活动”中预约。请预留足够的交接与往返时间。
+                    </Text>
+                  </Card>
+                  <View style={s.wrap}>
+                    <Button
+                      secondary={publishKind !== "solo"}
+                      onPress={() => setPublishKind("solo")}
+                    >
+                      发布单独时段
+                    </Button>
+                    <Button
+                      secondary={publishKind !== "pack"}
+                      onPress={() => setPublishKind("pack")}
+                    >
+                      发布 Pack 活动
+                    </Button>
+                  </View>
+                  {publishKind === "pack" &&
+                  !store.packs.some(
+                    (p) => p.lead_walker_id === uid && p.status === "open",
+                  ) ? (
+                    <Card>
+                      <Text style={s.body}>
+                        你还没有负责的小队，请联系运营安排后再发布 Pack
+                        活动。你现在可以发布单独散步时段。
+                      </Text>
+                    </Card>
+                  ) : (
+                    <Card>
+                      <Form
+                        key={publishKind}
+                        fields={[
+                          f("title", "活动名称"),
+                          f("start_at", "开始时间", "datetime"),
+                          f("end_at", "结束时间", "datetime"),
+                          ...(publishKind === "solo"
+                            ? [f("location", "集合地点")]
+                            : [
+                                {
+                                  name: "pack_id",
+                                  label: "负责的小队",
+                                  options: store.packs
+                                    .filter(
+                                      (p) =>
+                                        p.lead_walker_id === uid &&
+                                        p.status === "open",
+                                    )
+                                    .map((p) => ({
+                                      value: p.id,
+                                      label: `${p.name} · ${p.location} · 最多 ${p.capacity} 只`,
+                                    })),
+                                },
+                                {
+                                  ...f("capacity", "本次名额", "number"),
+                                  value: "1",
+                                },
+                              ]),
+                          {
+                            ...f("description", "活动说明", "long"),
+                            optional: true,
+                          },
+                        ]}
+                        label="发布遛狗时段"
+                        submit={async (v) => {
+                          const start = new Date(v.start_at.replace(" ", "T")),
+                            end = new Date(v.end_at.replace(" ", "T"));
+                          if (
+                            !Number.isFinite(start.getTime()) ||
+                            !Number.isFinite(end.getTime())
+                          )
+                            throw new Error("请填写有效的开始和结束时间");
+                          await run("walk.publish", {
+                            ...v,
+                            kind: publishKind,
+                            start_at: start.toISOString(),
+                            end_at: end.toISOString(),
+                            capacity:
+                              publishKind === "pack" ? Number(v.capacity) : 1,
+                          });
+                          setNotice("时段已发布，主人现在可以查看和预约");
+                        }}
+                      />
+                      <Text style={s.caption}>
+                        时间按你当前设备的当地时间填写。Pack
+                        活动沿用小队集合地点，成员仍须通过安全审核。
+                      </Text>
+                    </Card>
+                  )}
+                  <Text style={s.h2}>我发布的时段</Text>
+                  {!store.walk_publications.length && (
+                    <Text style={s.body}>还没有发布时段。</Text>
+                  )}
+                  {[...store.walk_publications].reverse().map((p) => {
+                    const slot = store.service_slots.find(
+                      (x) => x.id === p.slot_id,
+                    );
+                    return (
+                      <Card key={p.id}>
+                        <View style={s.row}>
+                          <Text style={s.h2}>{p.data.title}</Text>
+                          <Pill
+                            status={
+                              p.status === "published" ? "已发布" : "已撤回"
+                            }
+                          />
+                        </View>
+                        <Text style={s.body}>
+                          {date(slot?.start_at)} — {date(slot?.end_at)}
+                        </Text>
+                        <Text style={s.body}>{p.data.location}</Text>
+                        {p.status === "published" && (
+                          <Button
+                            secondary
+                            onPress={() =>
+                              safe(async () => {
+                                await run("walk.withdraw", { id: p.id });
+                                setNotice("时段已撤回");
+                              })
+                            }
+                          >
+                            撤回时段
+                          </Button>
+                        )}
+                        <Text style={s.caption}>
+                          已有有效预约的时段无法撤回，请联系运营处理。
+                        </Text>
+                      </Card>
+                    );
+                  })}
                 </>
               )}
               {page === "orders" && (
@@ -1609,18 +1896,18 @@ export default function App() {
           {tabs.map(([id, label, icon]) => (
             <Pressable
               accessibilityRole="tab"
-              accessibilityState={{ selected: page === id }}
+              accessibilityState={{ selected: activeTab === id }}
               key={id}
               onPress={() => go(id)}
               style={s.navItem}
             >
-              <Text style={[s.navIcon, page === id && { color: c.green }]}>
+              <Text style={[s.navIcon, activeTab === id && { color: c.green }]}>
                 {icon}
               </Text>
               <Text
                 style={[
                   s.navLabel,
-                  page === id && { color: c.green, fontWeight: "700" },
+                  activeTab === id && { color: c.green, fontWeight: "700" },
                 ]}
               >
                 {label}

@@ -41,7 +41,11 @@ beforeAll(async () => {
   await db.exec(
     `create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key,raw_user_meta_data jsonb); create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$; grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;`,
   );
-  for (const f of ["202611010001_core.sql", "202611010002_commands.sql"])
+  for (const f of [
+    "202611010001_core.sql",
+    "202611010002_commands.sql",
+    "202611010004_walker_publications.sql",
+  ])
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(`create schema storage;
     create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
@@ -393,12 +397,268 @@ describe("PostgreSQL transactions, RLS and full workflows", () => {
       (await db.query("select * from public.assessment_scores")).rows,
     ).toHaveLength(0);
   });
+  const offerStart = new Date(Date.now() + 30 * 86400000).toISOString();
+  const offerEnd = new Date(Date.now() + 30 * 86400000 + 3600000).toISOString();
+  const offer = {
+    kind: "solo",
+    title: "湖边慢走",
+    location: "公园南门",
+    start_at: offerStart,
+    end_at: offerEnd,
+  };
+  let publication: string,
+    publishedSlot: string,
+    publishedBooking: string,
+    packPublication: string,
+    publishedEvent: string;
+  async function feed() {
+    return (
+      await db.query<{ items: any[] }>(
+        "select public.list_walk_activities() items",
+      )
+    ).rows[0].items;
+  }
+  it("limits publication to active walkers and validates time and Pack ownership", async () => {
+    await as(owner);
+    await expect(cmd("walk.publish", offer)).rejects.toThrow("遛狗师");
+    await expect(
+      db.query("select public.command_v1('walk.publish','{}')"),
+    ).rejects.toThrow("permission");
+    await as(walker);
+    await expect(
+      cmd("walk.publish", { ...offer, start_at: new Date(0).toISOString() }),
+    ).rejects.toThrow("未来");
+    await expect(
+      cmd("walk.publish", { ...offer, end_at: offerStart }),
+    ).rejects.toThrow("未来");
+    await expect(
+      cmd("walk.publish", {
+        ...offer,
+        end_at: new Date(+new Date(offerStart) + 60000).toISOString(),
+      }),
+    ).rejects.toThrow("短于");
+    await expect(
+      cmd("walk.publish", { ...offer, kind: "pack", pack_id: other }),
+    ).rejects.toThrow("自己负责");
+    await expect(
+      cmd("walk.publish", {
+        ...offer,
+        kind: "pack",
+        pack_id: pack,
+        capacity: 999,
+      }),
+    ).rejects.toThrow("上限");
+    expect(
+      (await db.query("select * from public.walk_publications")).rows,
+    ).toHaveLength(0);
+    publication = await cmd("walk.publish", { ...offer, walker_id: other });
+    const item = (await feed()).find((p) => p.id === publication);
+    publishedSlot = item.slot_id;
+    expect(item.walker_id).toBe(walker);
+    expect(item.remaining).toBe(1);
+    expect(item.capacity).toBe(1);
+    await expect(cmd("walk.publish", offer)).rejects.toThrow("冲突");
+    await as(owner);
+    expect(
+      (await db.query("select * from public.walk_publications")).rows,
+    ).toHaveLength(0);
+    expect((await feed()).find((p) => p.id === publication).data.title).toBe(
+      "湖边慢走",
+    );
+  });
+  it("confirms published Solo reservations with the publisher and preserves capacity on retry", async () => {
+    await as(owner);
+    publishedBooking = await cmd("solo.book", {
+      slot_id: publishedSlot,
+      dog_id: dog,
+      duration: 30,
+      handoff: "伪造地点",
+      walker_id: other,
+    });
+    expect(
+      await cmd("solo.book", {
+        slot_id: publishedSlot,
+        dog_id: dog,
+        duration: 30,
+      }),
+    ).toBe(publishedBooking);
+    const booking = (
+      await db.query<any>("select * from public.solo_bookings where id=$1", [
+        publishedBooking,
+      ])
+    ).rows[0];
+    expect(booking.status).toBe("confirmed");
+    expect(booking.walker_id).toBe(walker);
+    expect(booking.data.handoff).toBe("公园南门");
+    expect(
+      (
+        await db.query("select * from public.walk_tasks where solo_id=$1", [
+          publishedBooking,
+        ])
+      ).rows,
+    ).toHaveLength(1);
+    await as(other);
+    const publicItem = (await feed()).find((p) => p.id === publication);
+    expect(publicItem.remaining).toBe(0);
+    expect(JSON.stringify(publicItem)).not.toContain(dog);
+    expect(JSON.stringify(publicItem)).not.toContain(owner);
+    await expect(
+      cmd("solo.book", {
+        slot_id: publishedSlot,
+        dog_id: otherDog,
+        duration: 30,
+      }),
+    ).rejects.toThrow("已满");
+    await expect(cmd("walk.withdraw", { id: publication })).rejects.toThrow(
+      "自己发布",
+    );
+    await as(walker);
+    await expect(cmd("walk.withdraw", { id: publication })).rejects.toThrow(
+      "已有预约",
+    );
+  });
+  it("reserves advertised availability against admin assignments and safely withdraws after cancellation", async () => {
+    await as(admin);
+    await expect(
+      cmd("admin.profile.update", {
+        id: walker,
+        role: "owner",
+        active: true,
+        reason: "测试",
+      }),
+    ).rejects.toThrow("撤回");
+    await expect(
+      cmd("admin.slot.close", { id: publishedSlot }),
+    ).rejects.toThrow("已有预约");
+    await expect(
+      cmd("admin.event.create", { slot_id: publishedSlot, pack_id: pack }),
+    ).rejects.toThrow("不能转为");
+    const overlap = await cmd("admin.slot.create", {
+      start_at: offerStart,
+      end_at: offerEnd,
+      capacity: 1,
+    });
+    await as(other);
+    const pending = await cmd("solo.book", {
+      slot_id: overlap,
+      dog_id: otherDog,
+      duration: 30,
+      handoff: "其他地点",
+    });
+    await as(admin);
+    await expect(
+      cmd("admin.solo.confirm", { id: pending, walker_id: walker }),
+    ).rejects.toThrow("冲突");
+    await as(owner);
+    await cmd("solo.cancel", { id: publishedBooking, reason: "测试取消" });
+    expect((await feed()).find((p) => p.id === publication).remaining).toBe(1);
+    // Cancellation restores the offered seat without freeing the advertised calendar.
+    await as(admin);
+    await expect(
+      cmd("admin.solo.confirm", { id: pending, walker_id: walker }),
+    ).rejects.toThrow("冲突");
+    await as(walker);
+    await cmd("walk.withdraw", { id: publication });
+    expect(await cmd("walk.withdraw", { id: publication })).toBe(publication);
+    expect((await feed()).some((p) => p.id === publication)).toBe(false);
+    await as(owner);
+    await expect(
+      cmd("solo.book", { slot_id: publishedSlot, dog_id: dog, duration: 30 }),
+    ).rejects.toThrow("不可预约");
+    await as(admin);
+    await cmd("admin.solo.confirm", { id: pending, walker_id: walker });
+    await as(walker);
+    await expect(cmd("walk.publish", offer)).rejects.toThrow("冲突");
+  });
+  it("publishes Pack activities with existing membership approval and shared inventory", async () => {
+    await as(walker);
+    packPublication = await cmd("walk.publish", {
+      ...offer,
+      kind: "pack",
+      pack_id: pack,
+      capacity: 1,
+      start_at: new Date(Date.now() + 32 * 86400000).toISOString(),
+      end_at: new Date(Date.now() + 32 * 86400000 + 3600000).toISOString(),
+    });
+    const item = (await feed()).find((p) => p.id === packPublication);
+    publishedEvent = item.event_id;
+    const approvedPack = (
+      await db.query<any>("select * from public.packs where id=$1", [pack])
+    ).rows[0];
+    expect(item.data.location).toBe(approvedPack.location);
+    await as(other);
+    await expect(
+      cmd("pack.book", { event_id: publishedEvent, dog_id: otherDog }),
+    ).rejects.toThrow("人工审核");
+    await as(owner);
+    const booking = await cmd("pack.book", {
+      event_id: publishedEvent,
+      dog_id: dog,
+    });
+    expect(
+      await cmd("pack.book", { event_id: publishedEvent, dog_id: dog }),
+    ).toBe(booking);
+    expect((await feed()).find((p) => p.id === packPublication).remaining).toBe(
+      0,
+    );
+    await as(walker);
+    const tasks = (
+      await db.query<any>(
+        "select * from public.walk_tasks where pack_booking_id=$1",
+        [booking],
+      )
+    ).rows;
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].walker_id).toBe(walker);
+    await expect(cmd("walk.withdraw", { id: packPublication })).rejects.toThrow(
+      "已有预约",
+    );
+  });
+  it("closes unbooked publications through admin controls and removes unavailable offers", async () => {
+    await as(walker);
+    const id = await cmd("walk.publish", {
+      ...offer,
+      start_at: new Date(Date.now() + 35 * 86400000).toISOString(),
+      end_at: new Date(Date.now() + 35 * 86400000 + 3600000).toISOString(),
+    });
+    const item = (await feed()).find((p) => p.id === id);
+    await as(admin);
+    await cmd("admin.slot.close", { id: item.slot_id });
+    expect((await feed()).some((p) => p.id === id)).toBe(false);
+    expect(
+      (
+        await db.query(
+          "select * from public.walker_reservations where publication_id=$1",
+          [id],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    // Simulate account deactivation outside normal guarded operations.
+    await db.exec("reset role");
+    await db.query("update public.profiles set active=false where id=$1", [
+      walker,
+    ]);
+    await as(owner);
+    expect((await feed()).some((p) => p.id === packPublication)).toBe(false);
+    await expect(
+      cmd("pack.book", { event_id: publishedEvent, dog_id: dog }),
+    ).rejects.toThrow("不可预约");
+    await db.exec("reset role");
+    await db.query("update public.profiles set active=true where id=$1", [
+      walker,
+    ]);
+    await as(owner);
+    expect((await feed()).some((p) => p.id === packPublication)).toBe(true);
+  });
   it("does not expose private helper functions or anonymous commands", async () => {
     await as(owner);
     await expect(
       db.query("select public.notify($1,$2,$3)", [other, "fake", dog]),
     ).rejects.toThrow("permission");
     await db.exec("reset role; set role anon");
+    await expect(
+      db.query("select public.list_walk_activities()"),
+    ).rejects.toThrow("permission");
     await expect(cmd("dog.save", { data: dogData })).rejects.toThrow(
       "permission",
     );

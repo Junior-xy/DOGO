@@ -4,6 +4,7 @@ export type Row = {
   owner_id?: string;
   dog_id?: string;
   walker_id?: string;
+  lead_walker_id?: string;
   slot_id?: string;
   pack_id?: string;
   event_id?: string;
@@ -15,6 +16,8 @@ export type Row = {
   name?: string;
   location?: string;
   capacity?: number;
+  remaining?: number;
+  kind?: "solo" | "pack";
   start_at?: string;
   end_at?: string;
   created_at?: string;
@@ -53,6 +56,7 @@ export const labels: Record<string, string> = {
   admin: "管理员",
 };
 export const tables = [
+  "walk_publications",
   "profiles",
   "dogs",
   "questionnaire_definitions",
@@ -76,9 +80,11 @@ export const tables = [
   "privacy_requests",
   "settings",
 ] as const;
-export type Store = Record<(typeof tables)[number], Row[]>;
+export type Store = Record<(typeof tables)[number] | "walk_activities", Row[]>;
 export const emptyStore = () =>
-  Object.fromEntries(tables.map((t) => [t, []])) as unknown as Store;
+  Object.fromEntries(
+    [...tables, "walk_activities"].map((t) => [t, []]),
+  ) as unknown as Store;
 export function client(
   url?: string,
   key?: string,
@@ -102,7 +108,12 @@ export async function snapshot(api: SupabaseClient): Promise<Store> {
       return [table, data ?? []];
     }),
   );
-  return Object.fromEntries(results) as Store;
+  const { data: activities, error } = await api.rpc("list_walk_activities");
+  if (error) throw new Error(error.message);
+  return {
+    ...Object.fromEntries(results),
+    walk_activities: activities ?? [],
+  } as Store;
 }
 export async function command(
   api: SupabaseClient | null,

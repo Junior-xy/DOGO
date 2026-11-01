@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit -p apps/admin && tsc --noEmit -p apps/mobile",
     "build:admin": "npm run build -w @dogo/admin",
     "build:mobile": "npm run build -w @dogo/mobile",
-    "test:browser": "node tests/browser-smoke.mjs"
+    "test:browser": "node tests/browser-smoke.mjs",
+    "test:publications": "node tests/walker-publications.mjs",
+    "test:preview": "node tests/preview-auth.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",

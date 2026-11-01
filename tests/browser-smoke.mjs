@@ -41,12 +41,15 @@ try {
     fullPage: true,
   });
   await owner.getByRole("tab", { name: "订单" }).click();
-  await owner.getByText("已确认", { exact: true }).waitFor();
+  await owner.getByText("已确认", { exact: true }).first().waitFor();
   await owner.screenshot({
     path: "test-results/mobile-orders.png",
     fullPage: true,
   });
-  await owner.getByRole("tab", { name: "Pack" }).click();
+  await owner.getByRole("tab", { name: "预约", exact: false }).click();
+  await owner
+    .getByRole("button", { name: "结伴散步 · Pack", exact: true })
+    .click();
   await owner.getByText("草地漫步小队", { exact: true }).waitFor();
   await owner.screenshot({
     path: "test-results/mobile-pack.png",
