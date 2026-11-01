@@ -1,0 +1,28 @@
+{
+  "name": "dogo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:admin": "npm run dev -w @dogo/admin",
+    "dev:mobile": "npm run start -w @dogo/mobile",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p apps/admin && tsc --noEmit -p apps/mobile",
+    "build:admin": "npm run build -w @dogo/admin",
+    "build:mobile": "npm run build -w @dogo/mobile",
+    "test:browser": "node tests/browser-smoke.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "vitest": "5.0.5"
+  }
+}

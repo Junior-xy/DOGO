@@ -1,0 +1,559 @@
+DOGO  /  PRODUCT REQUIREMENTS DOCUMENT
+DOGO App  MVP 产品需求文档
+PawStyle 性格档案 × Solo Walk × Pack Walk
+版本
+日期
+面向对象
+当前状态
+v1.0
+2026-11-01
+产品、设计、前后端、测试、运营小组
+开发基线 / 待团队确认
+
+范围：仅包含用户选择的 13 项功能。支付、实时 GPS、聊天社区和 AI 自动匹配不纳入本版。
+依据：团队提供的《DOGO 狗狗性格档案与四类风格方案 / PawLink / 2026-10-23 / v4.0》。文档中的性格计分、规则及限制沿用该材料；产品流程、页面、权限、数据库与验收条件均为本 PRD 建议，非原材料已确认需求。
+0. 执行摘要
+目标：让狗主人完成“注册 → 建立狗狗档案 → PawStyle 测试 → 查看结果 → 预约 Solo 或申请 Pack → 人工确认/审核 → 遛狗师执行 → 获得报告与通知”的完整可测试闭环。
+指标
+MVP 建议验收口径
+端到端闭环
+独立走通 Solo 和 Pack 各 1 条流程
+量表正确性
+全题算例、缺失、中点、反向题、风险事件测试全部通过
+权限
+主人/遛狗师/管理员跨角色访问被拒
+运营能力
+管理员可手动管理服务、审核 Pack 与指派遛狗师
+可观测性
+关键状态变更有时间戳和操作记录
+
+1. 产品范围与关键假设
+1.1 In scope（已选功能）
+账号注册与登录
+创建与管理狗狗档案
+PawStyle 完整问卷及计分
+四种风格与五维结果展示
+Solo Walk 预约
+Pack Walk 浏览与申请
+Pack 人工安全审核及首次见面记录
+预约及订单状态管理
+遛狗师任务执行
+安全与紧急联系机制
+服务完成报告与通知
+管理员操作后台
+性格结果分享卡
+1.2 Out of scope（不做）
+在线支付与退款；GPS 实时轨迹；自动派单；AI 自动犬只匹配；用户群聊、动态社区；用户自建 Pack；复杂订阅套餐；商业级风控评分。MVP 可展示价格，但不进行线上资金交易。
+1.3 需开会拍板的运营参数
+待定项
+建议缺省值（可配置）
+服务城市/试点范围
+先限定一个校区或固定服务片区
+Solo 时长
+30 / 60 分钟
+Pack 容量
+演示配置 3–4 只，正式上限由运营安全评估
+时段库存
+管理员人工上架
+取消规则
+上线前由运营明确；系统支持配置和留痕
+交接方式
+指定地点 + 双方确认
+遛狗师资格
+运营线下审核；App 仅记录审核状态
+通知通道
+优先站内通知，外部推送后续接入
+
+2. 用户角色与权限
+角色
+核心可执行操作
+绝对限制
+狗主人 Owner
+管理自己的狗；答问卷；查看结果；预约 Solo；申请 Pack；查看订单、报告、消息、分享卡
+不得访问他人的私密狗档案、订单、完整行为事件
+遛狗师 Walker
+查看分配给自己的任务与必要的服务信息；开始/结束任务；交接确认；提交报告和事件
+不得查看无关任务、其他用户完整测试原始答案
+管理员 Admin
+维护时段/Pack/遛狗师；分配订单；审核加入；记录首次见面；处理异常、通知及审计
+后台权限依职责受控；不能静默改写原始问卷历史
+
+实施建议：同一登录系统 + Role-Based Access Control (RBAC)。每条资源访问还要校验 owner_id 或 assigned_walker_id，不能只校验是否已登录。
+3. 信息架构与页面清单
+ID
+页面 / 界面
+主要功能
+角色
+P01
+登录 / 注册
+注册、登录、退出、协议确认
+Owner/Walker/Admin
+P02
+首页
+我的狗、入口、最新订单/通知
+Owner
+P03
+狗狗档案编辑
+新增/编辑、健康信息、紧急联系人
+Owner
+P04
+PawStyle 测试
+B1–B6、D1–D45、S1–S6、进度及暂存
+Owner
+P05
+PawStyle 结果
+四风格、E/P、五维、完整度、情境提醒
+Owner
+P06
+分享卡
+预览、下载/系统分享、隐私控制
+Owner
+P07
+Solo 预约
+选狗、时段、时长、交接点、备注、提交
+Owner
+P08
+Pack 列表/详情
+Pack 时间/容量/遛狗师/要求
+Owner
+P09
+Pack 申请与审核进度
+申请、首见安排、状态追踪
+Owner
+P10
+我的订单/详情
+状态、取消、任务过程、报告
+Owner
+P11
+通知中心
+状态变更与重要事件
+Owner/Walker
+W01
+遛狗师任务台
+任务清单、详情、开始/结束、交接
+Walker
+W02
+服务报告填写
+时段、照片可选、异常事件
+Walker
+A01
+后台总览
+当日预约、待审核、异常、基础统计
+Admin
+A02
+后台服务与 Pack 管理
+时段、容量、成员、服务人员
+Admin
+A03
+订单与指派
+确认/分配/取消/改期/记录
+Admin
+A04
+Pack 安全审核与首见
+事件核验、审核结论、现场记录
+Admin
+A05
+用户/狗/遛狗师管理
+查看必要资料、审核状态、封禁
+Admin
+
+4. 主流程与状态机
+4.1 新用户 Onboarding
+注册 → 同意协议 → 创建 Dog Profile → 完成 PawStyle 问卷 → 获取结果 → 进入 Solo 或 Pack。测试可以暂存；若 E/P 不完整则结果标为“风格待补充”，不得伪造完整分类。
+4.2 Solo Walk 订单
+Owner 选择狗与时段 → 创建 requested 订单 → Admin 确认与指派 assigned walker → confirmed → Walker 接狗后 in_progress → 完成归还并提交报告 completed。例外：requested/confirmed 可按规则 cancelled；异常服务可标记 incident_review。
+4.3 Pack 加入与活动
+Owner 浏览 Pack → 提交 application → safety_review → 如有需要 intro_scheduled → 记录 intro_result → approved / rejected / needs_more_info。通过后才建立 pack_membership，允许报名对应 Pack 活动；审核不通过不得加入。
+4.4 重要状态矩阵
+实体
+状态
+限制/操作人
+Solo 订单
+requested → confirmed → in_progress → completed
+Admin 确认/指派；Walker 开始、结束；Owner 仅查看/按规则取消
+Solo 订单
+requested/confirmed → cancelled
+取消原因、操作人、时间留痕
+Pack 申请
+submitted → safety_review → intro_scheduled → approved/rejected/needs_more_info
+Admin 决策；不得由 PawStyle 类型直接自动通过
+任务
+assigned → accepted → picked_up → walking → returned → reported
+仅分配的 Walker 可操作；交接记录必填
+异常事件
+open → under_review → resolved
+管理员处理结论与时间留痕
+
+5. 详细功能需求（FR）
+FR-01 账户注册与登录
+需求 ID
+功能说明
+FR-01-01
+邮箱/手机号二选一注册，唯一账号，输入校验与验证流程；开发演示可只做邮箱。
+FR-01-02
+安全登录/退出；会话过期、密码哈希、密码重置。
+FR-01-03
+保存隐私协议及服务条款同意时间与版本；不同角色登陆路由。
+
+FR-02 狗狗档案
+需求 ID
+功能说明
+FR-02-01
+必填昵称、年龄/估计年龄、体重；建议品种、性别、照片。
+FR-02-02
+保存主人提供的健康限制、装备、疫苗状态、紧急联系人；支持编辑。
+FR-02-03
+每份问卷关联唯一 dog_id；多狗家庭分开建档。
+
+FR-03 PawStyle 问卷
+需求 ID
+功能说明
+FR-03-01
+按原方案分三部分：6背景题 B、45核心题 D、6情境题 S；展示回答说明。
+FR-03-02
+D1–D45 使用 1–5 / X 单选；X 代表未观察或不适用，不等于 3。
+FR-03-03
+分页/进度条/返回/暂存，提交需做有效性检查；允许 X 并据此处理缺失。
+FR-03-04
+S1–S6 存储可结构化选项及情境备注；事件和均值分数独立保存。
+FR-03-05
+保存问卷版本、作答原值、填写日期、照顾者关系；重新测试生成新记录不覆盖旧记录。
+
+FR-04 性格计分与结果
+需求 ID
+功能说明
+FR-04-01
+14 道反向题执行 6-x；15 分面各 3 道题，缺一不计算该分面。
+FR-04-02
+F1–F5 只在下属所有分面完整时输出。E 和 P 由指定题分别计算。
+FR-04-03
+E>3/P>3 => EP；E<3/P>3 => CP；E>3/P<3 => EL；E<3/P<3 => CL。
+FR-04-04
+E 或 P =3 显示混合倾向；任一缺题显示待补充；2.5–3.5但非3注明轻微倾向。
+FR-04-05
+展示五维分数/简明释义、E/P、填写日期、有效题数、风险事件提醒、主人初评标识。
+
+FR-05 Solo 预约
+需求 ID
+功能说明
+FR-05-01
+选择狗、时长、开放时段、交接点与备注，提交生成唯一订单编号。
+FR-05-02
+仅显示可用库存；并发提交时不得双订同一 walker/time slot。
+FR-05-03
+Admin 可确认、指派、取消及记录原因；用户可查状态。
+
+FR-06 Pack 浏览与申请
+需求 ID
+功能说明
+FR-06-01
+列表与详情展示时间、地点、人数上限、负责人、报名规则。
+FR-06-02
+用户选择自己的狗提交申请，避免同一狗重复提交有效申请。
+FR-06-03
+管理员审核、首见预约、反馈与最终批准；未批准不显示入组成功。
+
+FR-07 安全审核/首次见面
+需求 ID
+功能说明
+FR-07-01
+重点人工核对 S1–S5、攻击相关原题以及健康/体型/牵引要求。
+FR-07-02
+风险事件触发“需人工了解”；未知信息不能自动当安全。
+FR-07-03
+首见记录包含日期、参与狗、观察人、互动情况、异常、处理建议。
+FR-07-04
+审核结论批准/拒绝/待补充，理由存档；不得单凭四风格自动配对。
+
+FR-08 预约/订单
+需求 ID
+功能说明
+FR-08-01
+主人订单列表与详情；状态时间轴、取消规则、历史记录。
+FR-08-02
+状态变更须校验合法迁移、权限和库存；记录 audit log。
+FR-08-03
+Pack 的“加入申请”与“单次活动预约”使用不同实体，防止混用。
+
+FR-09 遛狗师任务
+需求 ID
+功能说明
+FR-09-01
+仅查看分配任务及必要健康、行为和交接信息。
+FR-09-02
+支持确认接狗、开始、结束、归还；保存时间和交接确认。
+FR-09-03
+异常事件即时录入、联系紧急联系人/管理员入口。
+
+FR-10 安全与隐私
+需求 ID
+功能说明
+FR-10-01
+记录紧急联系人、应急指引、服务区域及照顾限制。
+FR-10-02
+事件记录与行为分数分离；敏感信息最小化显示。
+FR-10-03
+访问鉴权、关键操作日志、删除/导出申请流程；禁止在分享卡公开风险明细。
+
+FR-11 报告与通知
+需求 ID
+功能说明
+FR-11-01
+任务完成报告：实际开始/结束、交接、整体状况、异常与备注。
+FR-11-02
+订单确认、取消、Pack 审核、首次见面安排、任务完成产生站内通知。
+FR-11-03
+报告需可被 Owner 查看，提交后仅通过更正记录修改，不静默覆盖。
+
+FR-12 管理员后台
+需求 ID
+功能说明
+FR-12-01
+管理用户、狗、Walker、服务时段、Pack、订单、申请。
+FR-12-02
+查看待审核/异常工作队列，人工分配 Walker 和审核 Pack。
+FR-12-03
+运营配置基础指标与日志查询；涉及敏感原始问卷按最小权限开放。
+
+FR-13 分享卡
+需求 ID
+功能说明
+FR-13-01
+生成昵称、风格代码/名称、E/P 简述、可选头像的图形分享卡。
+FR-13-02
+对“混合倾向/待补充”显示诚实状态，不默认四分类。
+FR-13-03
+下载图片或调用系统分享；默认不含电话、地点、攻击事件及完整健康信息。
+
+6. PawStyle 评分技术规格（严格取自 v4.0）
+D1–D45 为 5 分制，X 视为 NULL。反向题为 D1、D4、D9、D10、D11、D18、D19、D22、D26、D28、D29、D34、D38、D41。反向计分 6-x，不可与 7 分版本混用。
+因子
+分面
+计分公式（先转分，再平均）
+F1 恐惧
+对人恐惧
+6-D1, D6, D27
+F1 恐惧
+非社交恐惧
+D3, 6-D11, 6-D22
+F1 恐惧
+对狗恐惧
+D13, D21, D42
+F1 恐惧
+被处理恐惧
+D16, D35, D44
+F2 对人攻击
+一般情境
+D7, 6-D18, D40
+F2 对人攻击
+特定情境
+D25, D30, D36
+F3 活动兴奋
+兴奋性 E
+D15, D31, 6-D41
+F3 活动兴奋
+玩耍倾向 P
+6-D9, D17, D33
+F3 活动兴奋
+主动投入
+6-D4, D14, D24
+F3 活动兴奋
+亲近陪伴
+D20, 6-D26, D37
+F4 训练回应
+可训练性
+6-D29, 6-D38, D43
+F4 训练回应
+可控制性
+D5, 6-D10, D32
+F5 对动物攻击
+对狗攻击
+D2, 6-D19, 6-D34
+F5 对动物攻击
+追逐捕猎
+D8, D23, D39
+F5 对动物攻击
+支配相关
+D12, 6-D28, D45
+
+每个分面三题必须全有效才求均值；F 因子取所属完整分面的均值；E/P 均为原精度比较，显示可保留两位小数。可选 0–100 只用 (均值-1)/4×100，不能说成准确率、百分位或风险概率。
+测试用例
+预期结果
+文件中“豆豆”45 题示例
+E=4.33, P=4.33, EP Spark；F1=2.75, F2=1, F3=4.25, F4=4, F5≈1.78
+D17=X
+P 不计算，风格待补充；E 可保留
+所有 D 题=3
+E=P=3，混合倾向
+D41 原分1、5
+反向结果分别为5、1
+E=3.33, P=4
+EP，注明兴奋性接近分界
+S1 报告有咬伤
+即使 EP 不变也展示人工核实提示
+
+备注：文档所用中文翻译、四种类型阈值和匹配用途属于试用方案，尚未经 DOGO 自身验证；上线商业产品前另行核对量表/译文使用许可。
+7. 数据库建议（关系型数据库 PostgreSQL / MySQL）
+以下为逻辑模型建议。所有核心表使用 UUID/雪花 ID 均可；默认 created_at、updated_at（UTC），必要时 deleted_at；敏感字段应加访问限制。
+表名
+主要字段 / 关联
+users
+id PK, email UNIQUE, password_hash, role, display_name, status, terms_version, consent_at
+dogs
+id PK, owner_id FK, nickname, birth_or_age, breed, sex, weight_kg, vaccine_status, health_notes, gear_notes, image_url
+emergency_contacts
+id PK, dog_id FK, name, phone, relationship, priority
+questionnaire_definitions
+id PK, version, scoring_version, profile_version, schema_json, active
+assessment_sessions
+id PK, dog_id FK, respondent_user_id FK, questionnaire_version, started_at, submitted_at, status, observation_meta_json
+assessment_answers
+id PK, session_id FK, item_code, raw_value_nullable, free_text_json, UNIQUE(session_id,item_code)
+assessment_scores
+id PK, session_id FK UNIQUE, factor_scores_json, facet_scores_json, e_score, p_score, style_code, completeness_json, scoring_version
+behavior_incidents
+id PK, dog_id FK, assessment_session_id FK NULL, source_item, target, context, occurred_at, description, follow_up_required
+walkers
+id PK, user_id FK UNIQUE, screening_status, service_area, active
+service_slots
+id PK, type, start_at, end_at, capacity, walker_id FK NULL, status
+solo_bookings
+id PK, owner_id FK, dog_id FK, slot_id FK, walker_id FK NULL, handoff_location, duration_min, notes, status, cancel_reason
+packs
+id PK, name, description, location, capacity, lead_walker_id FK, status
+pack_events
+id PK, pack_id FK, slot_id FK, date, status, capacity
+pack_applications
+id PK, pack_id FK, dog_id FK, owner_id FK, status, reviewer_id FK NULL, review_reason
+intro_meetings
+id PK, application_id FK, scheduled_at, observer_id FK, observations_json, outcome, notes
+pack_memberships
+id PK, pack_id FK, dog_id FK, approved_application_id FK, joined_at, status
+pack_event_bookings
+id PK, event_id FK, membership_id FK, status, UNIQUE(event_id,membership_id)
+walk_tasks
+id PK, booking_type, booking_id, walker_id FK, status, picked_up_at, started_at, finished_at, returned_at
+handoff_records
+id PK, task_id FK, action, confirmed_by, happened_at, notes
+walk_reports
+id PK, task_id FK UNIQUE, actual_start_at, actual_end_at, summary, observations, submitted_at
+notifications
+id PK, recipient_user_id FK, event_type, title, body, resource_type, resource_id, read_at
+audit_logs
+id PK, actor_user_id FK, entity_type, entity_id, action, from_status, to_status, at, metadata_json
+share_cards
+id PK, assessment_session_id FK, image_key, visibility, created_at
+
+7.1 重要约束与隐私规则
+同一个 dog_id 下允许多次 Assessment Session，历史不得覆盖；item_code 唯一避免重复答案。
+所有状态更新通过后端事务；对预约库存、Pack 最大人数做并发保护。
+涉及 Pack 的审核事件、攻击事件与健康备注不公开在普通成员列表或分享卡。
+Walk Task 的 booking_type + booking_id 指向 Solo 或 Pack Event Booking：实现时建议通过独立关联表或严格应用层校验保证引用一致性。
+完整问卷原始数据与计算结果分存，支持版本回溯和重新评分；未经许可不公开。
+若面向中国大陆实际商业上线，需要进一步评估适用的个人信息、用户同意及运营合规要求；本 PRD 不代表法律审查。
+7.2 API 接口草案
+方法
+接口示例
+用途
+POST
+/auth/register | /auth/login
+注册/登录
+GET/POST/PATCH
+/dogs | /dogs/{id}
+狗狗资料
+POST
+/assessments
+创建测试
+PUT
+/assessments/{id}/answers
+保存回答
+POST
+/assessments/{id}/submit
+提交并评分
+GET
+/assessments/{id}/result
+结果与分享数据
+GET/POST
+/solo/slots | /solo/bookings
+浏览/预约 Solo
+GET/POST
+/packs | /packs/{id}/applications
+Pack 浏览/申请
+PATCH
+/admin/pack-applications/{id}
+人工审批
+POST/PATCH
+/tasks/{id}/events
+交接、开始/结束
+POST
+/tasks/{id}/report
+提交报告
+GET
+/notifications
+消息中心
+GET
+/admin/dashboard
+后台总览
+
+8. 非功能需求与风险
+类别
+要求 / 建议验收
+安全
+密码加密哈希；HTTPS；角色/资源级权限；后端输入校验；操作审计
+隐私
+最小化采集；明确数据用途/可见范围/保存规则；分享卡去敏
+可靠性
+状态变更幂等；故障时不可出现重复订单和超额报名
+性能
+课程演示目标：主要页面正常网络下可交互；精确性能指标由压测确定
+可用性
+手机屏幕优先；问卷进度明显、允许恢复草稿、X 可理解
+可维护性
+问卷题目、分面映射、评分版本配置化，便于复核
+服务安全
+真实试点上线前需有线下 SOP、遛狗师审核与应急预案
+
+9. 验收测试与 Definition of Done
+□ 新用户可注册、创建 1 只狗，资料保存且重新登录仍存在。
+□ 可完成全部 B/D/S 问卷；中断后恢复草稿；D 的 X 能被正确识别。
+□ 四类、混合、待补充和分界提示通过预定义单元测试。
+□ 用户能够预约开放 Solo 时段，不能重复抢同一名额。
+□ Pack 申请需先审批；存在事件须人工处理；未通过不能入组。
+□ 遛狗师只能看到自己的任务，并能完整打点交接与提交报告。
+□ 完成任务后生成可追溯报告和站内通知；管理员可查操作记录。
+□ 未授权用户无法访问其他主人订单、测试答案和敏感事件。
+□ 分享卡不泄漏电话、精确地址、健康/攻击事件。
+□ 全部关键异常有反馈：断网、重复提交、时段售罄、资料不完整、审核拒绝。
+10. 开发分期与推荐分工
+迭代
+交付物
+依赖
+Sprint 1：基础架构
+用户认证、角色、狗资料、基础数据库
+无
+Sprint 2：PawStyle
+问卷配置、答题暂存、评分服务、结果、分享卡
+dogs/users
+Sprint 3：交易闭环
+Solo 时段与预约、Pack 列表/申请、审核、订单状态
+账户、狗、评分
+Sprint 4：执行与后台
+Walker 任务、交接、报告、通知、Admin 管理
+预约与审核
+Sprint 5：测试与试点
+端到端回归、权限、安全规则、修复与访谈
+全量功能
+
+推荐角色分工（可按人数调整）：产品/UX、前端、后端 API、数据库/安全、评分算法与测试、运营验证。评分算法工作量不大，但测试成本不能低估。
+11. 待确认问题（会议决策清单）
+□ 是否只支持邮箱注册，还是接短信验证码？
+□ Solo 每次预约允许几只狗？价格是否只展示、不收款？
+□ Pack 是固定时间周期活动还是每次独立开放报名？
+□ 首见是否全部必需，还是仅风险审核后决定？
+□ 取消规则、改期权限与迟到处理怎样定义？
+□ 是否允许用户删除测试历史？数据留存多久？
+□ 正式试点中谁审核遛狗师、疫苗状态与活动安全？
+□ 分享卡允许公开狗照片与昵称吗？是否默认关闭地理信息？
+12. 文档来源与边界
+核心依据：团队材料《DOGO 狗狗性格档案与四类风格方案》（PawLink，2026-10-23，v4.0），尤其第 2 页 USP、第 4–5 页四风格及结果、第 7–11 页题目、第 13–15 页评分与落地流程、第 16 页实施检查。
+本 PRD 的界面、数据库、状态机、API、技术栈与 Sprint 为建议方案，团队应在开发前确认；原材料并未直接指定这些实现细节。

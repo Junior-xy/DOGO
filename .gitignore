@@ -1,0 +1,10 @@
+node_modules/
+.expo/
+.next/
+dist/
+coverage/
+.env*
+!.env.example
+*.tsbuildinfo
+test-results/
+.local/

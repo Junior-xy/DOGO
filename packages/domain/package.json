@@ -1,0 +1,9 @@
+{
+  "name": "@dogo/domain",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0"
+  }
+}

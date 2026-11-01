@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "DOGO",
+    "slug": "dogo",
+    "scheme": "dogo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-router"],
+    "web": { "bundler": "metro", "output": "single" },
+    "ios": { "supportsTablet": true },
+    "android": { "package": "com.dogo.app" }
+  }
+}

@@ -1,0 +1,2 @@
+-- No passwords, real people, or privileged role grants in source control.
+-- Sign up accounts through the apps, then bootstrap one admin with the documented SQL.
