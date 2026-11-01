@@ -39,6 +39,8 @@ const api = client(
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   Platform.OS === "web" ? undefined : AsyncStorage,
 );
+// This reserved key belongs only to the isolated browser-test service.
+const isDemo = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY === "browser-test-key";
 const c = tokens.color;
 type Field = {
   name: string;
@@ -306,11 +308,12 @@ export default function App() {
     [busy, setBusy] = useState(true),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [register, setRegister] = useState(false),
+    [registerRequested, setRegister] = useState(false),
     [consent, setConsent] = useState(false),
     [editDog, setEditDog] = useState<Row | null>(null),
     [questionPage, setQuestionPage] = useState(0),
     [briefs, setBriefs] = useState<Record<string, any>>({});
+  const register = !isDemo && registerRequested;
   const {
     selectedDog,
     setSelectedDog,
@@ -547,6 +550,18 @@ export default function App() {
             </>
           ) : !uid ? (
             <>
+              {isDemo && (
+                <Card tint>
+                  <Text style={s.h2}>本机演示模式</Text>
+                  <Text style={s.body}>
+                    当前仅支持演示账号登录，暂不开放注册或密码重置。请勿填写真实邮箱或常用密码。
+                  </Text>
+                  <Text selectable style={s.caption}>
+                    主人：owner@dogo.test{"\n"}遛狗师：walker@dogo.test{"\n"}
+                    统一密码：DogoTest123!
+                  </Text>
+                </Card>
+              )}
               <Card>
                 <Text style={s.h2}>
                   {register ? "开启你们的散步故事" : "欢迎回来"}
@@ -601,30 +616,34 @@ export default function App() {
                     </Pressable>
                   </>
                 )}
-                <Button secondary onPress={() => setRegister(!register)}>
-                  {register ? "已有账号？去登录" : "第一次来？注册账号"}
-                </Button>
+                {!isDemo && (
+                  <Button secondary onPress={() => setRegister(!register)}>
+                    {register ? "已有账号？去登录" : "第一次来？注册账号"}
+                  </Button>
+                )}
               </Card>
-              <Card>
-                <Text style={s.h2}>忘记密码</Text>
-                <Form
-                  fields={[f("email", "注册邮箱", "email")]}
-                  label="发送重置邮件"
-                  submit={async (v) => {
-                    const { error } = await api.auth.resetPasswordForEmail(
-                      v.email,
-                      {
-                        redirectTo:
-                          Platform.OS === "web"
-                            ? `${window.location.origin}/profile`
-                            : createURL("profile"),
-                      },
-                    );
-                    if (error) throw error;
-                    setNotice("密码重置邮件已发送");
-                  }}
-                />
-              </Card>
+              {!isDemo && (
+                <Card>
+                  <Text style={s.h2}>忘记密码</Text>
+                  <Form
+                    fields={[f("email", "注册邮箱", "email")]}
+                    label="发送重置邮件"
+                    submit={async (v) => {
+                      const { error } = await api.auth.resetPasswordForEmail(
+                        v.email,
+                        {
+                          redirectTo:
+                            Platform.OS === "web"
+                              ? `${window.location.origin}/profile`
+                              : createURL("profile"),
+                        },
+                      );
+                      if (error) throw error;
+                      setNotice("密码重置邮件已发送");
+                    }}
+                  />
+                </Card>
+              )}
             </>
           ) : me?.active === false ? (
             <Card>
@@ -1526,24 +1545,26 @@ export default function App() {
                       消息中心
                     </Button>
                   </Card>
-                  <Card>
-                    <Text style={s.h2}>重置密码</Text>
-                    <Form
-                      fields={[
-                        f("password", "新密码（至少 8 位）", "password"),
-                      ]}
-                      label="更新密码"
-                      submit={async (v) => {
-                        if (v.password.length < 8)
-                          throw new Error("密码至少8位");
-                        const { error } = await api.auth.updateUser({
-                          password: v.password,
-                        });
-                        if (error) throw error;
-                        setNotice("密码已更新");
-                      }}
-                    />
-                  </Card>
+                  {!isDemo && (
+                    <Card>
+                      <Text style={s.h2}>重置密码</Text>
+                      <Form
+                        fields={[
+                          f("password", "新密码（至少 8 位）", "password"),
+                        ]}
+                        label="更新密码"
+                        submit={async (v) => {
+                          if (v.password.length < 8)
+                            throw new Error("密码至少8位");
+                          const { error } = await api.auth.updateUser({
+                            password: v.password,
+                          });
+                          if (error) throw error;
+                          setNotice("密码已更新");
+                        }}
+                      />
+                    </Card>
+                  )}
                   <Card>
                     <Text style={s.h2}>隐私与资料管理</Text>
                     <Text style={s.body}>
