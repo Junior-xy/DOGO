@@ -363,6 +363,7 @@ export default function App() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [registerRequested, setRegister] = useState(false),
+    [demoLoginBusy, setDemoLoginBusy] = useState(false),
     [consent, setConsent] = useState(false),
     [editDog, setEditDog] = useState<Row | null>(null),
     [questionPage, setQuestionPage] = useState(0),
@@ -487,6 +488,24 @@ export default function App() {
     await refresh();
     setNotice("已保存");
     return result;
+  }
+  async function signInDemo(role: "owner" | "walker") {
+    if (!api || !isDemo || demoLoginBusy) return;
+    setDemoLoginBusy(true);
+    setError("");
+    try {
+      const { error } = await api.auth.signInWithPassword({
+        email: `${role}@dogo.test`,
+        password: "DogoTest123!",
+      });
+      if (error) throw error;
+      await refresh();
+      go("home");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDemoLoginBusy(false);
+    }
   }
   async function uploadPhoto(d: Row) {
     const picked = await ImagePicker.launchImageLibraryAsync({
@@ -633,74 +652,90 @@ export default function App() {
                 <Card tint>
                   <Text style={s.h2}>本机演示模式</Text>
                   <Text style={s.body}>
-                    当前仅支持演示账号登录，暂不开放注册或密码重置。请勿填写真实邮箱或常用密码。
+                    选择一个身份开始体验，无需填写邮箱或密码。这里使用临时演示数据，暂不开放注册。
                   </Text>
-                  <Text selectable style={s.caption}>
-                    主人：owner@dogo.test{"\n"}遛狗师：walker@dogo.test{"\n"}
-                    统一密码：DogoTest123!
-                  </Text>
+                  <Button
+                    disabled={demoLoginBusy}
+                    onPress={() => void signInDemo("owner")}
+                  >
+                    以主人身份体验
+                  </Button>
+                  <Button
+                    secondary
+                    disabled={demoLoginBusy}
+                    onPress={() => void signInDemo("walker")}
+                  >
+                    以遛狗师身份体验
+                  </Button>
+                  {demoLoginBusy && <Text style={s.caption}>正在登录…</Text>}
                 </Card>
               )}
-              <Card>
-                <Text style={s.h2}>
-                  {register ? "开启你们的散步故事" : "欢迎回来"}
-                </Text>
-                <Form
-                  key={String(register)}
-                  fields={[
-                    ...(register ? [f("display_name", "你的称呼")] : []),
-                    f("email", "邮箱", "email"),
-                    f("password", "密码（至少 8 位）", "password"),
-                  ]}
-                  label={register ? "注册 DOGO" : "登录"}
-                  submit={async (v) => {
-                    if (v.password.length < 8) throw new Error("密码至少 8 位");
-                    if (register) {
-                      if (!consent)
-                        throw new Error("请阅读并同意服务与隐私说明");
-                      const { error } = await api.auth.signUp({
-                        email: v.email,
-                        password: v.password,
-                        options: {
-                          data: { display_name: v.display_name, consent: true },
-                        },
-                      });
-                      if (error) throw error;
-                      setNotice("注册已提交；如开启邮箱验证，请检查邮箱");
-                    } else {
-                      const { error } = await api.auth.signInWithPassword({
-                        email: v.email,
-                        password: v.password,
-                      });
-                      if (error) throw error;
-                    }
-                    await refresh();
-                  }}
-                />
-                {register && (
-                  <>
-                    <Text style={s.caption}>
-                      DOGO
-                      保存账号、狗狗档案、测评和服务记录用于提供服务。资料仅对本人、必要的服务人员及运营人员开放。可在“我的”申请导出或删除。版本
-                      2026-11。
-                    </Text>
-                    <Pressable
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: consent }}
-                      onPress={() => setConsent(!consent)}
-                    >
-                      <Text style={s.body}>
-                        {consent ? "☑" : "☐"} 我已阅读并同意服务与隐私说明
+              {!isDemo && (
+                <Card>
+                  <Text style={s.h2}>
+                    {register ? "开启你们的散步故事" : "欢迎回来"}
+                  </Text>
+                  <Form
+                    key={String(register)}
+                    fields={[
+                      ...(register ? [f("display_name", "你的称呼")] : []),
+                      f("email", "邮箱", "email"),
+                      f("password", "密码（至少 8 位）", "password"),
+                    ]}
+                    label={register ? "注册 DOGO" : "登录"}
+                    submit={async (v) => {
+                      if (v.password.length < 8)
+                        throw new Error("密码至少 8 位");
+                      if (register) {
+                        if (!consent)
+                          throw new Error("请阅读并同意服务与隐私说明");
+                        const { error } = await api.auth.signUp({
+                          email: v.email,
+                          password: v.password,
+                          options: {
+                            data: {
+                              display_name: v.display_name,
+                              consent: true,
+                            },
+                          },
+                        });
+                        if (error) throw error;
+                        setNotice("注册已提交；如开启邮箱验证，请检查邮箱");
+                      } else {
+                        const { error } = await api.auth.signInWithPassword({
+                          email: v.email,
+                          password: v.password,
+                        });
+                        if (error) throw error;
+                      }
+                      await refresh();
+                    }}
+                  />
+                  {register && (
+                    <>
+                      <Text style={s.caption}>
+                        DOGO
+                        保存账号、狗狗档案、测评和服务记录用于提供服务。资料仅对本人、必要的服务人员及运营人员开放。可在“我的”申请导出或删除。版本
+                        2026-11。
                       </Text>
-                    </Pressable>
-                  </>
-                )}
-                {!isDemo && (
-                  <Button secondary onPress={() => setRegister(!register)}>
-                    {register ? "已有账号？去登录" : "第一次来？注册账号"}
-                  </Button>
-                )}
-              </Card>
+                      <Pressable
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: consent }}
+                        onPress={() => setConsent(!consent)}
+                      >
+                        <Text style={s.body}>
+                          {consent ? "☑" : "☐"} 我已阅读并同意服务与隐私说明
+                        </Text>
+                      </Pressable>
+                    </>
+                  )}
+                  {!isDemo && (
+                    <Button secondary onPress={() => setRegister(!register)}>
+                      {register ? "已有账号？去登录" : "第一次来？注册账号"}
+                    </Button>
+                  )}
+                </Card>
+              )}
               {!isDemo && (
                 <Card>
                   <Text style={s.h2}>忘记密码</Text>

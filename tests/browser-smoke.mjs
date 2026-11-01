@@ -30,11 +30,8 @@ try {
   owner.on("pageerror", (e) => errors.push(e.message));
   await owner.goto("http://localhost:8081");
   await owner
-    .getByLabel("邮箱", { exact: true })
-    .first()
-    .fill("owner@dogo.test");
-  await owner.getByLabel("密码（至少 8 位）").fill("DogoTest123!");
-  await owner.getByRole("button", { name: "登录", exact: true }).click();
+    .getByRole("button", { name: "以主人身份体验", exact: true })
+    .click();
   await owner.getByText("我的小伙伴", { exact: true }).waitFor();
   await owner.screenshot({
     path: "test-results/mobile-home.png",

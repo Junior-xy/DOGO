@@ -7,9 +7,12 @@ async function login(role) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("http://localhost:8081/home");
-  await page.getByLabel("邮箱", { exact: true }).fill(`${role}@dogo.test`);
-  await page.getByLabel("密码（至少 8 位）").fill("DogoTest123!");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: role === "owner" ? "以主人身份体验" : "以遛狗师身份体验",
+      exact: true,
+    })
+    .click();
   await expect(
     page.getByRole("tab", {
       name: role === "walker" ? "需求广场" : "预约",
