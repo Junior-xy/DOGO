@@ -184,7 +184,8 @@ function Form({
                 {options.map((o) => (
                   <Pressable
                     accessibilityRole="radio"
-                    accessibilityState={{ selected: v[f.name] === o.value }}
+                    aria-checked={v[f.name] === o.value}
+                    accessibilityState={{ checked: v[f.name] === o.value }}
                     key={o.value}
                     onPress={() => setField(f.name, o.value)}
                     style={[s.choice, v[f.name] === o.value && s.choiceOn]}
@@ -678,7 +679,23 @@ export default function App() {
                   <Form
                     key={String(register)}
                     fields={[
-                      ...(register ? [f("display_name", "你的称呼")] : []),
+                      ...(register
+                        ? [
+                            {
+                              name: "signup_role",
+                              label: "选择注册身份",
+                              value: "owner",
+                              options: [
+                                { value: "owner", label: "狗主人" },
+                                {
+                                  value: "walker",
+                                  label: "遛狗师（无需审核）",
+                                },
+                              ],
+                            },
+                            f("display_name", "你的称呼"),
+                          ]
+                        : []),
                       f("email", "邮箱", "email"),
                       f("password", "密码（至少 8 位）", "password"),
                     ]}
@@ -689,18 +706,23 @@ export default function App() {
                       if (register) {
                         if (!consent)
                           throw new Error("请阅读并同意服务与隐私说明");
-                        const { error } = await api.auth.signUp({
+                        const { data, error } = await api.auth.signUp({
                           email: v.email,
                           password: v.password,
                           options: {
                             data: {
                               display_name: v.display_name,
+                              signup_role: v.signup_role,
                               consent: true,
                             },
                           },
                         });
                         if (error) throw error;
-                        setNotice("注册已提交；如开启邮箱验证，请检查邮箱");
+                        setNotice(
+                          data.session
+                            ? "注册成功，已按所选身份登录"
+                            : "注册已提交，请前往邮箱完成验证后登录。遛狗师无需人工审核。",
+                        );
                       } else {
                         const { error } = await api.auth.signInWithPassword({
                           email: v.email,

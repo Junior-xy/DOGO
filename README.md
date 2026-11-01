@@ -26,7 +26,7 @@ npm run dev:admin
 
 ## 第一个管理员与演示账号
 
-先在移动端注册主人、运营、遛狗师三个独立账号。注册请求必须带条款同意，公开注册永远只生成 owner 角色。由项目拥有者在 Supabase SQL Editor 手动设置首个管理员（替换已注册的真实运营邮箱）：
+先在移动端注册主人、运营、遛狗师三个独立账号。注册请求必须带条款同意，可选择狗主人（默认）或遛狗师；遛狗师注册后直接启用，无需人工审核。运营账号先以主人身份注册。由项目拥有者在 Supabase SQL Editor 手动设置首个管理员（替换已注册的真实运营邮箱）：
 
 ```sql
 update public.profiles
@@ -34,7 +34,7 @@ set role = 'admin'
 where id = (select id from auth.users where email = 'YOUR_ADMIN_EMAIL');
 ```
 
-此后使用后台“用户与遛狗师”审核并启用遛狗师账号。后台发布未来服务时段、创建 Pack、发布单次活动。仓库不包含生产账号或密码。
+后台“用户与遛狗师”仍可管理账号角色和启用状态。后台发布未来服务时段、创建 Pack、发布单次活动。仓库不包含生产账号或密码。
 
 ## 两条验收流程
 
@@ -79,7 +79,7 @@ npm run build:mobile
 - `tests`：纯函数与 PostgreSQL 集成验证。
 - `assets/brand`：用户提供的原始 Logo；没有改动品牌图形。
 
-普通读取受 RLS 约束。主人只能读取自己的资源；遛狗师可读取本人发布的时段和分配任务，通过 `task_brief()` 获取必要联系与照顾信息，不能读取原始问卷。角色由数据库决定，不信任注册元数据。关键写入记录操作人和时间，预约库存通过行锁保护，同一遛狗师跨重叠时段通过人员锁与日历检查防冲突。
+普通读取受 RLS 约束。主人只能读取自己的资源；遛狗师可读取本人发布的时段和分配任务，通过 `task_brief()` 获取必要联系与照顾信息，不能读取原始问卷。角色由数据库决定，注册身份仅允许 owner 和 walker，不能通过注册或修改元数据获得管理员权限。关键写入记录操作人和时间，预约库存通过行锁保护，同一遛狗师跨重叠时段通过人员锁与日历检查防冲突。
 
 ## 待完成外部验收
 
@@ -132,3 +132,12 @@ npm run test:preview
 已有环境需先部署 `supabase/migrations/202611020005_owner_requests.sql`，再部署两端客户端。新的浏览器回归命令为 `npm run test:requests`，建议在全新启动的临时服务上运行，然后依次运行原有 `test:browser`、`test:publications`、`test:preview`。临时服务重启后需重新登录演示账号。
 
 演示版移动端登录页现改为“以主人身份体验”和“以遛狗师身份体验”两个按钮，使用上面的临时账号登录，不渲染邮箱或密码输入框，避免浏览器自动填入真实账号。该入口仅在测试服务专用 key 下启用；正式环境继续使用邮箱注册与登录。
+
+
+## 注册身份与公网更新
+
+注册页支持“狗主人”和“遛狗师（无需审核）”。新遛狗师直接进入工作台，可查看需求和发布时段。此变更不会修改已有账号的身份，也不会取消 Pack 的狗狗安全审核。若 Supabase 开启邮箱验证，用户仍需先完成邮箱验证。
+
+已有公网环境须先在 Supabase 的 SQL Editor 执行 `supabase/migrations/202611020006_signup_roles.sql`，再部署最新移动端 Web（Vercel）。只更新网页而未执行此迁移，数据库仍会按旧规则创建主人账号。新环境按顺序执行全部迁移。
+
+独立注册浏览器测试：在测试服务终端设置 `DOGO_TEST_HARNESS=1`、`DOGO_TEST_SIGNUP=1`、`DOGO_TEST_PORT=54330`，运行 `node tests/browser-harness.mjs`；移动端预览设置 `EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54330`、`EXPO_PUBLIC_SUPABASE_ANON_KEY=registration-test-key`，在 `apps/mobile` 运行 `npx expo start --port 8082`；最后在根目录运行 `npm run test:signup`。该服务只接受合成的 `@dogo.test` 账号，数据仅保存在内存，不连接生产环境。邮箱验证分支使用模拟无 session 响应，不发送真实邮件。

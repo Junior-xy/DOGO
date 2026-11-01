@@ -46,6 +46,7 @@ beforeAll(async () => {
     "202611010002_commands.sql",
     "202611010004_walker_publications.sql",
     "202611020005_owner_requests.sql",
+    "202611020006_signup_roles.sql",
   ])
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(`create schema storage;
@@ -91,6 +92,88 @@ describe("PostgreSQL transactions, RLS and full workflows", () => {
         )
       ).rows[0].role,
     ).toBe("owner");
+  });
+  it("registers active owners and walkers without manual approval", async () => {
+    for (const role of ["owner", "walker"]) {
+      await db.exec("reset role");
+      const id =
+        role === "owner"
+          ? "00000000-0000-4000-8000-000000000091"
+          : "00000000-0000-4000-8000-000000000092";
+      await db.query("insert into auth.users values($1,$2)", [
+        id,
+        JSON.stringify({
+          consent: true,
+          display_name: "自选身份",
+          signup_role: role,
+          role: "admin",
+          active: false,
+        }),
+      ]);
+      await as(id);
+      const profile = (
+        await db.query<any>("select * from public.profiles where id=$1", [id])
+      ).rows[0];
+      expect(profile.role).toBe(role);
+      expect(profile.active).toBe(true);
+      if (role === "walker") {
+        const offer = await cmd("walk.publish", {
+          kind: "solo",
+          title: "新注册直接发布",
+          location: "公园",
+          start_at: "2088-01-01T10:00:00Z",
+          end_at: "2088-01-01T11:00:00Z",
+        });
+        expect(offer).toBeTruthy();
+        await cmd("walk.withdraw", { id: offer });
+      } else expect(await cmd("dog.save", { data: dogData })).toBeTruthy();
+      await expect(cmd("admin.settings.save", {})).rejects.toThrow("管理员");
+    }
+  });
+  it("rejects privileged signup roles and does not change roles through metadata edits", async () => {
+    await db.exec("reset role");
+    for (const role of ["admin", "superuser", ""]) {
+      await expect(
+        db.query("insert into auth.users values(gen_random_uuid(),$1)", [
+          JSON.stringify({ consent: true, signup_role: role }),
+        ]),
+      ).rejects.toThrow("注册身份");
+    }
+    await expect(
+      db.query(
+        `insert into auth.users values(gen_random_uuid(),' {"signup_role":"walker"}')`,
+      ),
+    ).rejects.toThrow("同意");
+    const id = "00000000-0000-4000-8000-000000000092";
+    await db.query(
+      `update auth.users set raw_user_meta_data='{"signup_role":"admin"}' where id=$1`,
+      [id],
+    );
+    expect(
+      (
+        await db.query<any>("select role from public.profiles where id=$1", [
+          id,
+        ])
+      ).rows[0].role,
+    ).toBe("walker");
+    // Applying the additive migration never reclassifies existing accounts.
+    await db.exec(
+      readFileSync("supabase/migrations/202611020006_signup_roles.sql", "utf8"),
+    );
+    expect(
+      (
+        await db.query<any>("select role from public.profiles where id=$1", [
+          owner,
+        ])
+      ).rows[0].role,
+    ).toBe("owner");
+    expect(
+      (
+        await db.query<any>("select role from public.profiles where id=$1", [
+          admin,
+        ])
+      ).rows[0].role,
+    ).toBe("admin");
   });
   it("isolates private image uploads and reads by owner", async () => {
     await as(owner);

@@ -15,6 +15,7 @@ for (const f of [
   "202611010002_commands.sql",
   "202611010004_walker_publications.sql",
   "202611020005_owner_requests.sql",
+  "202611020006_signup_roles.sql",
 ])
   await db.exec(
     readFileSync(
@@ -153,6 +154,46 @@ async function handle(req, res) {
     res.end(JSON.stringify(data));
   };
   try {
+    // Explicitly enabled only for registration browser tests; never real accounts.
+    if (
+      url.pathname === "/auth/v1/signup" &&
+      process.env.DOGO_TEST_SIGNUP === "1"
+    ) {
+      if (
+        !/^[a-z0-9-]+@dogo\.test$/.test(body.email ?? "") ||
+        body.password !== "DogoTest123!"
+      )
+        return send(
+          { msg: "Only synthetic signup fixtures are accepted" },
+          400,
+        );
+      if (Object.values(users).some((u) => u.email === body.email))
+        return send({ msg: "测试账号已存在" }, 400);
+      const id = randomUUID();
+      await db.exec("reset role");
+      await db.query("insert into auth.users values($1,$2)", [
+        id,
+        JSON.stringify(body.data ?? {}),
+      ]);
+      const user = {
+        id,
+        email: body.email,
+        aud: "authenticated",
+        role: "authenticated",
+        user_metadata: body.data,
+        created_at: new Date().toISOString(),
+      };
+      users[id] = user;
+      const token = randomUUID();
+      tokens.set(token, user);
+      return send({
+        access_token: token,
+        refresh_token: token,
+        expires_in: 3600,
+        token_type: "bearer",
+        user,
+      });
+    }
     if (url.pathname === "/auth/v1/token") {
       let user;
       if (url.searchParams.get("grant_type") === "refresh_token")
@@ -237,6 +278,7 @@ async function handle(req, res) {
     await db.exec("reset role");
   }
 }
-server.listen(54329, "127.0.0.1", () =>
-  console.log("DOGO ephemeral browser fixture at 127.0.0.1:54329"),
+const port = Number(process.env.DOGO_TEST_PORT ?? 54329);
+server.listen(port, "127.0.0.1", () =>
+  console.log(`DOGO ephemeral browser fixture at 127.0.0.1:${port}`),
 );
