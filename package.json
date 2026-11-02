@@ -17,7 +17,8 @@
     "test:publications": "node tests/walker-publications.mjs",
     "test:preview": "node tests/preview-auth.mjs",
     "test:requests": "node tests/owner-requests.mjs",
-    "test:signup": "node tests/signup-roles.mjs"
+    "test:signup": "node tests/signup-roles.mjs",
+    "test:pawstyle": "node tests/pawstyle-browser.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",

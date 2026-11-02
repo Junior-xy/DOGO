@@ -16,6 +16,7 @@ for (const f of [
   "202611010004_walker_publications.sql",
   "202611020005_owner_requests.sql",
   "202611020006_signup_roles.sql",
+  "202611020007_pawstyle.sql",
 ])
   await db.exec(
     readFileSync(
@@ -239,8 +240,18 @@ async function handle(req, res) {
         (await db.query("select public.list_walk_requests() result")).rows[0]
           .result,
       );
+    if (url.pathname === "/rest/v1/rpc/save_pawstyle")
+      return send(
+        (
+          await db.query("select public.save_pawstyle($1::jsonb) result", [
+            JSON.stringify(body.payload),
+          ])
+        ).rows[0].result,
+      );
     const table = url.pathname.split("/").pop();
     const allowed = [
+      "pawstyle_responses",
+      "pawstyle_questionnaires",
       "walk_publications",
       "profiles",
       "dogs",

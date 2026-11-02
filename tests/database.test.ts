@@ -47,6 +47,7 @@ beforeAll(async () => {
     "202611010004_walker_publications.sql",
     "202611020005_owner_requests.sql",
     "202611020006_signup_roles.sql",
+    "202611020007_pawstyle.sql",
   ])
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(`create schema storage;
@@ -1049,5 +1050,156 @@ describe("PostgreSQL transactions, RLS and full workflows", () => {
     await expect(cmd("dog.save", { data: dogData })).rejects.toThrow(
       "permission",
     );
+  });
+
+  it("stores the exact official PawStyle question bank and all 56 answers without scores", async () => {
+    const bank = JSON.parse(
+      readFileSync("apps/mobile/src/pawstyle/questionnaire.json", "utf8"),
+    );
+    await as(owner);
+    const stored = (
+      await db.query<any>("select data from public.pawstyle_questionnaires")
+    ).rows[0].data;
+    expect(stored).toEqual(bank);
+    const answers: Record<string, any> = {};
+    for (const section of bank.sections)
+      for (const q of section.questions) {
+        answers[q.id] = {
+          value:
+            section.id === "D"
+              ? "X"
+              : q.type === "multiple"
+                ? [q.options[0], q.options[1]]
+                : q.options[0],
+        };
+      }
+    answers.B5 = { value: ["召回", "其他"], text: "转圈" };
+    answers.B6 = { value: "有，请说明", text: "近期搬家" };
+    answers.S2.text = "玩具旁";
+    answers.S4.text = "昨天门口";
+    answers.S5.text = "无活动限制";
+    const privateDog = await cmd("dog.save", {
+      data: { ...dogData, nickname: "问卷狗狗" },
+    });
+    const before = (
+      await db.query<any>("select count(*) from public.assessment_scores")
+    ).rows[0].count;
+    const payload = {
+      dog_id: privateDog,
+      version: bank.version,
+      answers,
+      position: 55,
+      expected_revision: 0,
+    };
+    const save = async (p: any) =>
+      (
+        await db.query<any>("select public.save_pawstyle($1) result", [
+          JSON.stringify(p),
+        ])
+      ).rows[0].result;
+    const first = await save(payload);
+    expect(first.revision).toBe(1);
+    const row = (
+      await db.query<any>(
+        "select * from public.pawstyle_responses where id=$1",
+        [first.id],
+      )
+    ).rows[0];
+    expect(row.answers).toEqual(answers);
+    expect(Object.keys(row.answers)).toHaveLength(56);
+    expect(row.position).toBe(55);
+    const updated = await save({
+      ...payload,
+      expected_revision: 1,
+      answers: { D1: { value: 5 } },
+      position: 6,
+    });
+    expect(updated.id).toBe(first.id);
+    expect(updated.revision).toBe(2);
+    await expect(save({ ...payload, expected_revision: 1 })).rejects.toThrow(
+      "更新的草稿",
+    );
+    expect(
+      (await db.query<any>("select count(*) from public.assessment_scores"))
+        .rows[0].count,
+    ).toBe(before);
+    await as(other);
+    expect(
+      (
+        await db.query("select * from public.pawstyle_responses where id=$1", [
+          first.id,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    await expect(save({ ...payload, expected_revision: 2 })).rejects.toThrow(
+      "无权",
+    );
+    await as(walker);
+    expect(
+      (
+        await db.query("select * from public.pawstyle_responses where id=$1", [
+          first.id,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    await expect(save({ ...payload, expected_revision: 2 })).rejects.toThrow(
+      "无权",
+    );
+    await as(owner);
+    await expect(
+      db.query(
+        "update public.pawstyle_responses set answers='{}' where id=$1",
+        [first.id],
+      ),
+    ).rejects.toThrow("permission denied");
+  });
+  it("validates PawStyle IDs, modes, core options, text rules and draft positions", async () => {
+    await as(owner);
+    const privateDog = await cmd("dog.save", { data: dogData });
+    const payload = {
+      dog_id: privateDog,
+      version: "DOGO-DPQ-CN5-v0.1",
+      answers: {},
+      position: 0,
+      expected_revision: 0,
+    };
+    const save = async (patch: any) =>
+      db.query("select public.save_pawstyle($1)", [
+        JSON.stringify({ ...payload, ...patch }),
+      ]);
+    for (const answers of [
+      { D46: { value: 1 } },
+      { D1: { value: 0 } },
+      { D1: { value: "5" } },
+      { D1: { value: [1] } },
+      { B3: { value: "在家休息" } },
+      { B3: { value: ["在家休息", "在家休息"] } },
+      { B5: { value: ["不在题库"] } },
+      { S3: { value: "未发现" } },
+      { B1: { value: "少于1个月", text: "不可写" } },
+      { B5: { value: ["召回"], text: "未选其他" } },
+      { B6: { value: "没有", text: "不可写" } },
+      { S2: { value: "有", text: "长".repeat(2001) } },
+      { D1: { value: 1, score: 5 } },
+    ])
+      await expect(save({ answers })).rejects.toThrow();
+    for (const position of [-1, 56, null])
+      await expect(save({ position })).rejects.toThrow();
+    await expect(save({ version: "unknown" })).rejects.toThrow("版本");
+    await save({
+      answers: {
+        S2: { value: null, text: "先写场景" },
+        B3: { value: [] },
+        D1: { value: 1 },
+        D2: { value: 2 },
+        D3: { value: 3 },
+        D4: { value: 4 },
+        D5: { value: 5 },
+        D6: { value: "X" },
+      },
+    });
+    await db.exec("reset role; set role anon");
+    await expect(save({})).rejects.toThrow("permission denied");
+    await db.exec("reset role");
   });
 });

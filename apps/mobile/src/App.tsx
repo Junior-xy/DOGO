@@ -1,8 +1,6 @@
-import { useEffect, useState, useRef, type ElementRef } from "react";
+import { useEffect, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
-import * as Sharing from "expo-sharing";
 import { createURL } from "expo-linking";
-import { captureRef } from "react-native-view-shot";
 import {
   View,
   Text,
@@ -11,7 +9,6 @@ import {
   ScrollView,
   Image,
   StyleSheet,
-  Share,
   Platform,
   ActivityIndicator,
   Linking,
@@ -31,7 +28,7 @@ import {
   type Store,
   type Row,
 } from "@dogo/domain";
-import { factorNames, type Question } from "@dogo/ti";
+import { PawStyle } from "./pawstyle/PawStyle";
 import { useDraft } from "./DraftContext";
 import { tokens } from "@dogo/ui";
 const api = client(
@@ -258,97 +255,6 @@ function Form({
     </View>
   );
 }
-function Result({ data, nickname }: { data: any; nickname: string }) {
-  const shareView = useRef<ElementRef<typeof View>>(null);
-  async function share() {
-    const p = { nickname, style: data.style, E: data.E, P: data.P };
-    if (Platform.OS === "web") {
-      const canvas = document.createElement("canvas");
-      canvas.width = 800;
-      canvas.height = 1000;
-      const g = canvas.getContext("2d")!;
-      g.fillStyle = "#F2F6E8";
-      g.fillRect(0, 0, 800, 1000);
-      g.fillStyle = c.green;
-      g.font = "bold 40px sans-serif";
-      g.fillText("DOGO  /  Dogo Ti", 70, 110);
-      g.fillStyle = c.ink;
-      g.font = "bold 64px sans-serif";
-      g.fillText(nickname.slice(0, 10), 70, 260);
-      g.font = "bold 90px sans-serif";
-      g.fillText(String(data.style), 70, 420);
-      g.font = "28px sans-serif";
-      g.fillText(`兴奋性 E  ${data.E?.toFixed(2) ?? "待补充"}`, 70, 570);
-      g.fillText(`玩耍倾向 P  ${data.P?.toFixed(2) ?? "待补充"}`, 70, 630);
-      g.font = "22px sans-serif";
-      g.fillText("主人初评 · 一起了解它的小小世界", 70, 850);
-      const a = document.createElement("a");
-      a.download = "dogo-ti.png";
-      a.href = canvas.toDataURL();
-      a.click();
-    } else if (await Sharing.isAvailableAsync()) {
-      const uri = await captureRef(shareView, { format: "png", quality: 1 });
-      await Sharing.shareAsync(uri, {
-        mimeType: "image/png",
-        dialogTitle: "分享 Dogo Ti 性格卡",
-      });
-    } else
-      await Share.share({
-        title: "Dogo Ti 分享卡",
-        message: `${p.nickname}的 Dogo Ti：${p.style}\n兴奋性 ${p.E?.toFixed(2) ?? "待补充"} · 玩耍倾向 ${p.P?.toFixed(2) ?? "待补充"}\n主人初评，不用于自动安全判断。`,
-      });
-  }
-  return (
-    <>
-      <View ref={shareView} collapsable={false} style={s.resultHero}>
-        <Text style={s.eyebrow}>DOGO TI / 主人初评</Text>
-        <Text style={s.heroTitle}>{nickname}的小小世界</Text>
-        <Text style={s.styleCode}>{data.style}</Text>
-        <Text style={s.body}>
-          兴奋性 E {data.E?.toFixed(2) ?? "待补充"}　·　玩耍倾向 P{" "}
-          {data.P?.toFixed(2) ?? "待补充"}
-        </Text>
-      </View>
-      <Card>
-        <Text style={s.h2}>五个维度，更了解它</Text>
-        {Object.entries(factorNames).map(([key, name]) => (
-          <View key={key} style={{ marginTop: 18 }}>
-            <View style={s.row}>
-              <Text>{name}</Text>
-              <Text>{data.factors[key]?.toFixed(2) ?? "待补充"} / 5</Text>
-            </View>
-            <View style={s.track}>
-              <View
-                style={[
-                  s.bar,
-                  {
-                    width: `${data.factors[key] === null ? 0 : ((data.factors[key] - 1) / 4) * 100}%`,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        ))}
-        <Text style={[s.caption, { marginTop: 20 }]}>
-          有效核心题 {data.validCount}
-          /45。分数反映主人观察，不是风险概率或安全认证。
-        </Text>
-        {[data.E, data.P].some(
-          (v) => v !== null && v !== 3 && v >= 2.5 && v <= 3.5,
-        ) && <Text style={s.body}>部分维度接近分界，呈轻微倾向。</Text>}
-      </Card>
-      <Card tint>
-        <Text style={s.h2}>只分享它的性格</Text>
-        <Text style={s.body}>
-          分享内容仅包含昵称、风格与 E/P 结果。请确认是否愿意公开昵称。
-        </Text>
-        <Button onPress={() => void share()}>
-          {Platform.OS === "web" ? "确认并下载分享卡" : "确认并调用系统分享"}
-        </Button>
-      </Card>
-    </>
-  );
-}
 export default function App() {
   const router = useRouter(),
     params = useLocalSearchParams<{
@@ -367,7 +273,6 @@ export default function App() {
     [demoLoginBusy, setDemoLoginBusy] = useState(false),
     [consent, setConsent] = useState(false),
     [editDog, setEditDog] = useState<Row | null>(null),
-    [questionPage, setQuestionPage] = useState(0),
     [briefs, setBriefs] = useState<Record<string, any>>({});
   const [bookingKind, setBookingKind] = useState(
     params.kind === "pack" || page === "packs" ? "pack" : "solo",
@@ -381,24 +286,10 @@ export default function App() {
   const isBooking = ["book", "solo", "packs"].includes(page);
   const activeTab = isBooking || page === "request" ? "book" : page;
   const register = !isDemo && registerRequested;
-  const {
-    selectedDog,
-    setSelectedDog,
-    assessment,
-    setAssessment,
-    answers,
-    setAnswers,
-    relationship,
-    setRelationship,
-    userId,
-    setUserId,
-  } = useDraft();
+  const { selectedDog, setSelectedDog, userId, setUserId } = useDraft();
   useEffect(() => {
     if (uid && uid !== userId) {
       setUserId(uid);
-      setAssessment(null);
-      setAnswers({});
-      setRelationship("");
       setSelectedDog(store.dogs.find((d) => d.owner_id === uid)?.id ?? "");
     }
   }, [uid, userId]);
@@ -455,9 +346,7 @@ export default function App() {
   const me = store.profiles.find((p) => p.id === uid),
     isWalker = me?.role === "walker",
     dogs = store.dogs.filter((d) => d.owner_id === uid),
-    dog = dogs.find((d) => d.id === selectedDog),
-    definition = store.questionnaire_definitions.find((q) => q.active),
-    questions: Question[] = definition?.data.questions ?? [];
+    dog = dogs.find((d) => d.id === selectedDog);
   const durations: number[] = store.settings[0]?.data.durations ?? [
     15, 30, 45, 60, 90, 120,
   ];
@@ -537,31 +426,14 @@ export default function App() {
     value: selectedDog,
     options: dogs.map((d) => ({ value: d.id, label: d.data.nickname })),
   };
-  function begin(row?: Row) {
-    setAssessment(row ?? null);
-    setAnswers(row?.data.answers ?? {});
-    setRelationship(row?.data.relationship ?? "");
-    setQuestionPage(0);
+  function begin() {
     go("assessment");
-  }
-  async function saveAssessment(submit = false) {
-    if (!dog) throw new Error("请先建立狗狗档案");
-    const r = await run("assessment.save", {
-      id: assessment?.id,
-      dog_id: dog.id,
-      data: { answers, relationship },
-    });
-    setAssessment({ id: r.id, data: { answers, relationship } });
-    if (submit) {
-      await run("assessment.submit", { id: r.id });
-      go("results");
-    } else setNotice("测评草稿已保存，可稍后继续");
   }
   const title: Record<string, string> = {
     home: isWalker ? "今天，一起好好散步" : "每一次出门，都有好时光",
     dogs: "我的狗狗",
-    assessment: "Dogo Ti 性格测试",
-    results: "Dogo Ti 结果",
+    assessment: "DOGO PawStyle 问卷",
+    results: "DOGO PawStyle 问卷",
     book: "预约一次好好散步",
     solo: "预约一次好好散步",
     packs: "预约一次好好散步",
@@ -859,7 +731,7 @@ export default function App() {
                             key={d.id}
                             onPress={() => {
                               setSelectedDog(d.id);
-                              go("results");
+                              go("assessment");
                             }}
                           >
                             <Card>
@@ -892,12 +764,12 @@ export default function App() {
                       )}
                       <Pressable onPress={() => begin()}>
                         <Card tint>
-                          <Text style={s.eyebrow}>DOGO TI</Text>
-                          <Text style={s.h2}>它的性格，有自己的小宇宙。</Text>
+                          <Text style={s.eyebrow}>DOGO PAWSTYLE</Text>
+                          <Text style={s.h2}>记录它的日常小习惯。</Text>
                           <Text style={s.body}>
-                            从日常观察出发，认识它的兴奋、玩耍与陪伴倾向。
+                            从日常观察出发，填写问卷，随时保存和继续。
                           </Text>
-                          <Text style={s.topLink}>探索 Dogo Ti →</Text>
+                          <Text style={s.topLink}>填写 PawStyle 问卷 →</Text>
                         </Card>
                       </Pressable>
                       <View style={s.serviceGrid}>
@@ -995,212 +867,35 @@ export default function App() {
                   </Card>
                 </>
               )}
-              {page === "assessment" && (
-                <>
-                  {!dogs.length ? (
-                    <Card>
-                      <Text style={s.body}>请先添加狗狗档案。</Text>
-                      <Button onPress={() => go("dogs")}>建立档案</Button>
-                    </Card>
-                  ) : !definition ? (
-                    <Card>
-                      <Text style={s.h2}>完整问卷正在准备中</Text>
-                      <Text style={s.body}>
-                        团队需要核对原版 B/D/S
-                        题目后发布。我们不会使用编造题目产生性格结果。
-                      </Text>
-                      <Text style={s.caption}>
-                        已实现 45 道核心题的正式计分规则。
-                      </Text>
-                    </Card>
-                  ) : (
-                    <>
-                      <View style={s.wrap}>
-                        {dogs.map((d) => (
-                          <Button
-                            key={d.id}
-                            secondary={selectedDog !== d.id}
-                            onPress={() => {
-                              setSelectedDog(d.id);
-                              setAssessment(null);
-                              setAnswers({});
-                              setQuestionPage(0);
-                            }}
-                          >
-                            {d.data.nickname}
-                          </Button>
-                        ))}
-                      </View>
-                      <Text style={s.body}>
-                        依据平时的实际观察作答。核心题为 1–5 分；X 表示未观察 /
-                        不适用，不等于 3。
-                      </Text>
-                      <Text style={s.caption}>
-                        {Object.keys(answers).length}/57 已作答 · 版本{" "}
-                        {definition.version}
-                      </Text>
-                      <View style={s.track}>
-                        <View
-                          style={[
-                            s.bar,
-                            {
-                              width: `${(Object.keys(answers).length / 57) * 100}%`,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={s.label}>照顾者关系</Text>
-                      <TextInput
-                        style={s.input}
-                        value={relationship}
-                        onChangeText={setRelationship}
-                        placeholder="例如：主人、家庭照顾者"
+              {["assessment", "results"].includes(page) &&
+                (!dogs.length ? (
+                  <Card>
+                    <Text style={s.body}>请先添加狗狗档案。</Text>
+                    <Button onPress={() => go("dogs")}>建立档案</Button>
+                  </Card>
+                ) : (
+                  <>
+                    <View style={s.wrap}>
+                      {dogs.map((d) => (
+                        <Button
+                          key={d.id}
+                          secondary={selectedDog !== d.id}
+                          onPress={() => setSelectedDog(d.id)}
+                        >
+                          {d.data.nickname}
+                        </Button>
+                      ))}
+                    </View>
+                    {dog && api && (
+                      <PawStyle
+                        key={`${uid}:${dog.id}`}
+                        api={api}
+                        userId={uid}
+                        dogId={dog.id}
                       />
-                      {questions
-                        .slice(questionPage * 6, questionPage * 6 + 6)
-                        .map((q) => (
-                          <Card key={q.code}>
-                            <Text style={s.caption}>{q.code}</Text>
-                            <Text style={s.h2}>{q.text}</Text>
-                            {q.code.startsWith("D") ? (
-                              <View style={s.wrap}>
-                                {[1, 2, 3, 4, 5, "X"].map((v) => (
-                                  <Pressable
-                                    accessibilityRole="radio"
-                                    accessibilityState={{
-                                      selected: answers[q.code] === v,
-                                    }}
-                                    key={v}
-                                    style={[
-                                      s.answer,
-                                      answers[q.code] === v && s.choiceOn,
-                                    ]}
-                                    onPress={() =>
-                                      setAnswers({ ...answers, [q.code]: v })
-                                    }
-                                  >
-                                    <Text>{v}</Text>
-                                  </Pressable>
-                                ))}
-                              </View>
-                            ) : q.options ? (
-                              <View style={s.wrap}>
-                                {q.options.map((v) => (
-                                  <Pressable
-                                    key={v}
-                                    style={[
-                                      s.choice,
-                                      answers[q.code] === v && s.choiceOn,
-                                    ]}
-                                    onPress={() =>
-                                      setAnswers({ ...answers, [q.code]: v })
-                                    }
-                                  >
-                                    <Text>{v}</Text>
-                                  </Pressable>
-                                ))}
-                              </View>
-                            ) : (
-                              <TextInput
-                                accessibilityLabel={q.text}
-                                style={s.input}
-                                multiline
-                                value={answers[q.code] ?? ""}
-                                onChangeText={(v) =>
-                                  setAnswers({ ...answers, [q.code]: v })
-                                }
-                              />
-                            )}
-                          </Card>
-                        ))}
-                      <View style={s.row}>
-                        <Button
-                          secondary
-                          disabled={!questionPage}
-                          onPress={() => setQuestionPage(questionPage - 1)}
-                        >
-                          上一页
-                        </Button>
-                        <Text>
-                          {questionPage + 1} / {Math.ceil(questions.length / 6)}
-                        </Text>
-                        <Button
-                          secondary
-                          disabled={(questionPage + 1) * 6 >= questions.length}
-                          onPress={() => setQuestionPage(questionPage + 1)}
-                        >
-                          下一页
-                        </Button>
-                      </View>
-                      <Button
-                        secondary
-                        onPress={() => safe(() => saveAssessment())}
-                      >
-                        暂存，稍后继续
-                      </Button>
-                      <Button
-                        disabled={Object.keys(answers).length !== 57}
-                        onPress={() => safe(() => saveAssessment(true))}
-                      >
-                        提交并查看结果
-                      </Button>
-                    </>
-                  )}
-                </>
-              )}
-              {page === "results" && (
-                <>
-                  <View style={s.wrap}>
-                    {dogs.map((d) => (
-                      <Button
-                        key={d.id}
-                        secondary={selectedDog !== d.id}
-                        onPress={() => setSelectedDog(d.id)}
-                      >
-                        {d.data.nickname}
-                      </Button>
-                    ))}
-                  </View>
-                  {store.assessment_sessions
-                    .filter((a) => a.dog_id === selectedDog)
-                    .slice()
-                    .reverse()
-                    .map((a) => (
-                      <View key={a.id}>
-                        {a.status === "draft" ? (
-                          <Card>
-                            <Text style={s.h2}>未完成的测评</Text>
-                            <Button onPress={() => begin(a)}>
-                              继续填写草稿
-                            </Button>
-                          </Card>
-                        ) : (
-                          <>
-                            <Text style={s.caption}>
-                              {date(a.submitted_at)}
-                            </Text>
-                            {store.assessment_scores
-                              .filter((x) => x.id === a.id)
-                              .map((x) => (
-                                <Result
-                                  key={x.id}
-                                  data={x.data}
-                                  nickname={dog?.data.nickname ?? "狗狗"}
-                                />
-                              ))}
-                            <Card>
-                              <Text style={s.body}>
-                                情境事件需要人工了解，Dogo Ti 不代替 Pack
-                                安全审核。
-                              </Text>
-                            </Card>
-                          </>
-                        )}
-                      </View>
-                    ))}
-                  <Button onPress={() => begin()}>开始一次新测评</Button>
-                </>
-              )}
+                    )}
+                  </>
+                ))}
               {(isBooking || page === "request") && !isWalker && (
                 <Card tint>
                   <Text style={s.h2}>时间由你来定</Text>
@@ -2073,8 +1768,8 @@ export default function App() {
                     <Button secondary onPress={() => go("dogs")}>
                       我的狗狗档案
                     </Button>
-                    <Button secondary onPress={() => go("results")}>
-                      测评历史与分享卡
+                    <Button secondary onPress={() => go("assessment")}>
+                      PawStyle 问卷与草稿
                     </Button>
                     <Button secondary onPress={() => go("notifications")}>
                       消息中心

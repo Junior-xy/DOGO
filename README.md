@@ -41,22 +41,17 @@ where id = (select id from auth.users where email = 'YOUR_ADMIN_EMAIL');
 1. 主人注册 → 添加狗与紧急联系人 → 预约 Solo → 管理员确认指派 → 遛狗师接受 → 主人确认接狗 → 遛狗师确认接狗、开始 → 主人确认归还 → 遛狗师归还、报告 → 主人查看报告与通知。
 2. 主人申请 Pack → 管理员进入安全审核 → 视需要安排并记录首次见面 → 人工勾选安全核实、填写批准理由 → 主人单独报名活动 → 按上述双方交接流程执行并提交报告。
 
-## Dogo Ti 原文依赖
+## DOGO PawStyle 正式问卷（当前阶段）
 
-现有 PRD **没有** B1–B6、D1–D45、S1–S6 题干和“豆豆”45题示例答案。未编造或默认发布问卷；在正式原文到位前，测评入口显示未发布。计分算法已严格按 PRD 第6节实现，并测试反向、缺失、中点、四类与临界倾向。
+正式题库为 `apps/mobile/src/pawstyle/questionnaire.json`，逐字保留用户提供的 `DOGO-DPQ-CN5-v0.1` JSON：B1–B6、D1–D45、S1–S5，共 56 题。B3、B5、S3 按多选配置（B5、S3 后续可调整）；D 题共用原始 1–5 与 X 选项。B5 选“其他”、B6 选“有，请说明”时显示文字输入；S2、S4、S5 支持原提示文字输入。S1 保留原注释。
 
-后台“运营设置”支持发布完整版本 JSON：
+首页和“我的 → PawStyle 问卷与草稿”可进入。逐题填写、分区跳转、上一题、下一题、已答题数和百分比均可用。答案以唯一 question ID 存储，例如 `{"D1":{"value":"X"},"B5":{"value":["召回","其他"],"text":"转圈"}}`。文字题可先输入说明，此时 value 为 null，尚不计入已答题数。补充文字选填，最多 2000 字。
 
-```json
-{
-  "version": "团队确认的问卷版本",
-  "questions": [
-    { "code": "B1", "text": "从正式原文填入", "options": ["正式选项"] }
-  ]
-}
-```
+每次选择、文字输入和导航都会自动保存到本机。点击“暂存，稍后继续”同步到账号，退出重进恢复位置和答案；使用另一设备时能恢复已暂存到账号的版本。草稿按账号、狗狗、问卷版本隔离，网络失败会提示重试，跨设备更新冲突会要求用户选择保留哪份草稿。清理浏览器数据会删除尚未同步的本机草稿。
 
-示例仅说明格式；实际必须包含全部57个唯一题号及真实题干，否则服务端拒绝发布。D题固定为1–5与X，其他题可配置选项或文本。重测生成新记录；已提交答案及报告不可覆盖。情境回答独立记录，必须由人工理解。
+本阶段只有填写与答案保存，不计算分数、不反向计分、不生成五维或性格分类，也没有结果页面。旧 `/results` 地址兼容进入问卷，原有计分库和历史数据库保留但不接入 PawStyle；旧后台的题库发布入口也不控制 PawStyle 题库。
+
+**已有公网环境需先在 Supabase SQL Editor 执行 `supabase/migrations/202611020007_pawstyle.sql`，再部署最新 Web。** 新环境按编号执行所有迁移。新表 `pawstyle_questionnaires` 保存题库，`pawstyle_responses` 保存答案；`save_pawstyle` 验证版本、题号、选项和访问权限。未部署迁移时只能本机填写，账号读取或暂存会显示失败提示。
 
 ## 验证
 
@@ -73,9 +68,9 @@ npm run build:mobile
 
 - `apps/mobile`：Expo Router，主人和遛狗师界面，共享品牌 token。
 - `apps/admin`：Next.js 管理台，登录后由数据库再次校验每项管理操作。
-- `packages/dogo-ti`：PRD 分面映射与纯 TypeScript 评分，供预览与回归验证。
+- `packages/dogo-ti`：历史 PRD 评分与回归验证，当前 PawStyle 不调用。
 - `packages/domain`：Supabase 客户端、状态文案、读取模型与业务命令。
-- `supabase/migrations`：关系数据、RLS、服务端计分和事务。所有关键写入经 `command()`，没有客户端提交的最终分数。
+- `supabase/migrations`：关系数据、RLS、服务端计分和事务。关键写入经 `command()` 或 `save_pawstyle()`，没有客户端提交的最终分数。
 - `tests`：纯函数与 PostgreSQL 集成验证。
 - `assets/brand`：用户提供的原始 Logo；没有改动品牌图形。
 
@@ -83,7 +78,7 @@ npm run build:mobile
 
 ## 待完成外部验收
 
-- 提供完整原问卷和“豆豆”算例后，发布题库并核对标准答案。
+- 下一阶段再明确 PawStyle 的计分和结果规则，本阶段不包含这些功能。
 - 配置真实 Supabase 开发项目，联调邮箱确认、重置邮件、存储和部署迁移。
 - 真机与真实并发连接测试，以及运营参数、资质审核、应急流程的团队验收。
 
@@ -95,7 +90,7 @@ npm run build:mobile
 
 在一个终端设置 `DOGO_TEST_HARNESS=1` 并运行 `node tests/browser-harness.mjs`。另两个终端分别给后台和移动端设置上述公开环境变量，URL 指向 `http://127.0.0.1:54329`，key 为 `browser-test-key`，启动两端后执行 `npm run test:browser`。每次验收前重启测试服务以重置样本数据。浏览器测试需要本机安装 Chrome。
 
-仅此临时环境的账号是 `owner@dogo.test`、`walker@dogo.test`、`admin@dogo.test`，密码均为 `DogoTest123!`。测试会发布明确标记的合成题目验证57题与草稿流程；正式数据库不包含这些题目。
+仅此临时环境的账号是 `owner@dogo.test`、`walker@dogo.test`、`admin@dogo.test`，密码均为 `DogoTest123!`。正式 PawStyle 问卷使用独立浏览器测试；业务数据库中保留的旧计分单元测试不代表 PawStyle 已启用计分。
 
 ## 已知依赖告警
 
@@ -141,3 +136,8 @@ npm run test:preview
 已有公网环境须先在 Supabase 的 SQL Editor 执行 `supabase/migrations/202611020006_signup_roles.sql`，再部署最新移动端 Web（Vercel）。只更新网页而未执行此迁移，数据库仍会按旧规则创建主人账号。新环境按顺序执行全部迁移。
 
 独立注册浏览器测试：在测试服务终端设置 `DOGO_TEST_HARNESS=1`、`DOGO_TEST_SIGNUP=1`、`DOGO_TEST_PORT=54330`，运行 `node tests/browser-harness.mjs`；移动端预览设置 `EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54330`、`EXPO_PUBLIC_SUPABASE_ANON_KEY=registration-test-key`，在 `apps/mobile` 运行 `npx expo start --port 8082`；最后在根目录运行 `npm run test:signup`。该服务只接受合成的 `@dogo.test` 账号，数据仅保存在内存，不连接生产环境。邮箱验证分支使用模拟无 session 响应，不发送真实邮件。
+
+
+## PawStyle 浏览器验收
+
+使用独立端口避免影响其他演示：测试服务终端设置 `DOGO_TEST_HARNESS=1`、`DOGO_TEST_PORT=54331` 后运行 `node tests/browser-harness.mjs`；Expo 终端设置 `EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54331`、`EXPO_PUBLIC_SUPABASE_ANON_KEY=browser-test-key`，在 `apps/mobile` 运行 `npx expo start --port 8083`；根目录运行 `npm run test:pawstyle`。每次完整验收前重启测试服务以重置内存数据。
