@@ -1,3 +1,5 @@
+import { scorePawStyle } from "../apps/mobile/src/pawstyle/pawstyle-scoring";
+import samples from "./pawstyle-samples.json";
 import { PGlite } from "@electric-sql/pglite";
 import { beforeAll, afterAll, describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -48,6 +50,7 @@ beforeAll(async () => {
     "202611020005_owner_requests.sql",
     "202611020006_signup_roles.sql",
     "202611020007_pawstyle.sql",
+    "202611020008_pawstyle_results.sql",
   ])
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(`create schema storage;
@@ -1200,6 +1203,114 @@ describe("PostgreSQL transactions, RLS and full workflows", () => {
     });
     await db.exec("reset role; set role anon");
     await expect(save({})).rejects.toThrow("permission denied");
+    await db.exec("reset role");
+  });
+
+  it("matches server scoring to the supplied TypeScript reference across all profiles and missing values", async () => {
+    await db.exec("reset role");
+    // Quantize only for comparison of floating point representation, never for classification.
+    const normalize = (value: any): any =>
+      typeof value === "number"
+        ? Number(value.toFixed(10))
+        : Array.isArray(value)
+          ? value.map(normalize)
+          : value && typeof value === "object"
+            ? Object.fromEntries(
+                Object.entries(value).map(([k, v]) => [k, normalize(v)]),
+              )
+            : value;
+    for (const core of [
+      ...Object.values(samples),
+      {},
+      { D1: 1, D17: null },
+      ...Array.from({ length: 25 }, (_, seed) =>
+        Object.fromEntries(
+          Array.from({ length: 45 }, (_, i) => [
+            `D${i + 1}`,
+            (i + seed) % 11 === 0 ? "X" : ((i * 7 + seed) % 5) + 1,
+          ]),
+        ),
+      ),
+    ]) {
+      const result = (
+        await db.query<any>("select public.score_pawstyle_core($1) result", [
+          JSON.stringify(core),
+        ])
+      ).rows[0].result;
+      expect(normalize(result)).toEqual(normalize(scorePawStyle(core)));
+    }
+  });
+  it("keeps immutable repeat-test results with raw B/S answers, rejects forged scores and isolates owners", async () => {
+    await as(owner);
+    const privateDog = await cmd("dog.save", { data: dogData });
+    const answers: any = Object.fromEntries(
+      Object.entries(samples.example).map(([id, value]) => [id, { value }]),
+    );
+    Object.assign(answers, {
+      B6: { value: "有，请说明", text: "搬家" },
+      S1: { value: "造成伤口" },
+      S3: { value: ["突然靠近", "多只同时出现"] },
+      S2: { value: "有", text: "食盆附近" },
+    });
+    const save = async (a: any, revision: number) =>
+      (
+        await db.query<any>("select public.save_pawstyle($1) result", [
+          JSON.stringify({
+            dog_id: privateDog,
+            version: "DOGO-DPQ-CN5-v0.1",
+            answers: a,
+            position: 55,
+            expected_revision: revision,
+          }),
+        ])
+      ).rows[0].result;
+    const draft = await save(answers, 0);
+    const submit = async (id: string, revision: number) =>
+      (
+        await db.query<any>("select public.submit_pawstyle($1) result", [
+          JSON.stringify({
+            response_id: id,
+            expected_revision: revision,
+            result: { style: { code: "CL" } },
+          }),
+        ])
+      ).rows[0].result;
+    const first = await submit(draft.id, 1);
+    expect(await submit(draft.id, 1)).toEqual(first);
+    const rows = async () =>
+      (
+        await db.query<any>(
+          "select * from public.pawstyle_results where dog_id=$1 order by response_revision",
+          [privateDog],
+        )
+      ).rows;
+    expect((await rows())[0].raw_answers).toEqual(answers);
+    expect((await rows())[0].result.style.code).toBe("EP");
+    const next = { ...answers, D17: { value: "X" } };
+    await save(next, 1);
+    await submit(draft.id, 2);
+    const records = await rows();
+    expect(records).toHaveLength(2);
+    expect(records[0].raw_answers).toEqual(answers);
+    expect(records[0].result.style.code).toBe("EP");
+    expect(records[1].result.style.status).toBe("pending");
+    await expect(submit(draft.id, 1)).rejects.toThrow("已经更新");
+    await expect(
+      db.query(
+        "update public.pawstyle_results set raw_answers='{}' where id=$1",
+        [first.id],
+      ),
+    ).rejects.toThrow("permission denied");
+    await expect(
+      db.query("delete from public.pawstyle_results where id=$1", [first.id]),
+    ).rejects.toThrow("permission denied");
+    for (const who of [other, walker]) {
+      await as(who);
+      expect(await rows()).toHaveLength(0);
+      await expect(submit(draft.id, 2)).rejects.toThrow("无权");
+    }
+    await db.exec("reset role; set role anon");
+    await expect(submit(draft.id, 2)).rejects.toThrow("permission denied");
     await db.exec("reset role");
   });
 });

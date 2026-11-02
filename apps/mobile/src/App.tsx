@@ -28,6 +28,7 @@ import {
   type Store,
   type Row,
 } from "@dogo/domain";
+import { PawStyleResults } from "./pawstyle/PawStyleResults";
 import { PawStyle } from "./pawstyle/PawStyle";
 import { useDraft } from "./DraftContext";
 import { tokens } from "@dogo/ui";
@@ -433,7 +434,7 @@ export default function App() {
     home: isWalker ? "今天，一起好好散步" : "每一次出门，都有好时光",
     dogs: "我的狗狗",
     assessment: "DOGO PawStyle 问卷",
-    results: "DOGO PawStyle 问卷",
+    results: "DOGO PawStyle 结果",
     book: "预约一次好好散步",
     solo: "预约一次好好散步",
     packs: "预约一次好好散步",
@@ -886,14 +887,26 @@ export default function App() {
                         </Button>
                       ))}
                     </View>
-                    {dog && api && (
-                      <PawStyle
-                        key={`${uid}:${dog.id}`}
-                        api={api}
-                        userId={uid}
-                        dogId={dog.id}
-                      />
-                    )}
+                    {dog &&
+                      api &&
+                      (page === "results" ? (
+                        <PawStyleResults
+                          key={`${uid}:${dog.id}`}
+                          api={api}
+                          userId={uid}
+                          dogId={dog.id}
+                          nickname={dog.data.nickname}
+                          onEdit={() => go("assessment")}
+                        />
+                      ) : (
+                        <PawStyle
+                          key={`${uid}:${dog.id}`}
+                          api={api}
+                          userId={uid}
+                          dogId={dog.id}
+                          onResults={() => go("results")}
+                        />
+                      ))}
                   </>
                 ))}
               {(isBooking || page === "request") && !isWalker && (
@@ -1770,6 +1783,9 @@ export default function App() {
                     </Button>
                     <Button secondary onPress={() => go("assessment")}>
                       PawStyle 问卷与草稿
+                    </Button>
+                    <Button secondary onPress={() => go("results")}>
+                      PawStyle 结果与历史
                     </Button>
                     <Button secondary onPress={() => go("notifications")}>
                       消息中心

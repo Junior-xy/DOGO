@@ -24,15 +24,18 @@ import {
   waitForWrites,
   type Draft,
 } from "./model";
+import { scoreAnswers } from "./profile";
 const c = tokens.color;
 export function PawStyle({
   api,
   userId,
   dogId,
+  onResults,
 }: {
   api: SupabaseClient;
   userId: string;
   dogId: string;
+  onResults: () => void;
 }) {
   const key = storageKey(userId, dogId);
   const [draft, setDraft] = useState<Draft>(blankDraft);
@@ -142,13 +145,15 @@ export function PawStyle({
       updatedAt: new Date().toISOString(),
     });
   }
-  async function save() {
+  async function save(viewResult = false) {
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     setError("");
     const sent = current.current;
+    let draftSaved = false;
     try {
+      if (viewResult) scoreAnswers(sent.answers);
       await waitForWrites();
       const { data, error } = await api.rpc("save_pawstyle", {
         payload: {
@@ -160,6 +165,7 @@ export function PawStyle({
         },
       });
       if (error) throw new Error(error.message);
+      draftSaved = true;
       const saved = {
         ...current.current,
         revision: data.revision,
@@ -170,11 +176,21 @@ export function PawStyle({
         await queueWrite(() =>
           AsyncStorage.setItem(key, JSON.stringify(saved)),
         );
+      if (viewResult) {
+        const { error: resultError } = await api.rpc("submit_pawstyle", {
+          payload: { response_id: data.id, expected_revision: data.revision },
+        });
+        if (resultError) throw new Error(resultError.message);
+        await waitForWrites();
+        if (alive.current) onResults();
+      }
     } catch (e) {
       if (alive.current) {
-        setStatus("尚未同步到账号");
+        setStatus(
+          draftSaved ? "答案已保存到账号，结果尚未生成" : "尚未同步到账号",
+        );
         setError(
-          `暂存失败：${(e as Error).message}。答案仍保留在当前页面；请重试。`,
+          `${draftSaved ? "结果生成失败" : "暂存失败"}：${(e as Error).message}。答案已保留，请重试。`,
         );
         const { data } = await api
           .from("pawstyle_responses")
@@ -186,7 +202,12 @@ export function PawStyle({
             r.dog_id === dogId &&
             r.version === questionnaire.version,
         );
-        if (alive.current && row && row.revision !== sent.revision) {
+        if (
+          !draftSaved &&
+          alive.current &&
+          row &&
+          row.revision !== sent.revision
+        ) {
           const remote = parseDraft(
             JSON.stringify({
               answers: row.answers,
@@ -225,7 +246,7 @@ export function PawStyle({
   return (
     <View style={styles.container}>
       <Text style={styles.caption}>
-        版本 {questionnaire.version} · 答案仅用于保存本次观察
+        版本 {questionnaire.version} · 根据日常观察填写
       </Text>
       <Text style={styles.body}>
         已作答 {total} / {questions.length} 题 ·{" "}
@@ -387,6 +408,11 @@ export function PawStyle({
         saving ? "正在暂存…" : "暂存，稍后继续",
         () => void save(),
         saving || !!conflict,
+      )}
+      {action(
+        "保存并查看结果",
+        () => void save(true),
+        saving || !!conflict || total === 0,
       )}
       {total === questions.length && (
         <Text style={styles.body}>

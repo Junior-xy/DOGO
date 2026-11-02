@@ -41,7 +41,7 @@ where id = (select id from auth.users where email = 'YOUR_ADMIN_EMAIL');
 1. 主人注册 → 添加狗与紧急联系人 → 预约 Solo → 管理员确认指派 → 遛狗师接受 → 主人确认接狗 → 遛狗师确认接狗、开始 → 主人确认归还 → 遛狗师归还、报告 → 主人查看报告与通知。
 2. 主人申请 Pack → 管理员进入安全审核 → 视需要安排并记录首次见面 → 人工勾选安全核实、填写批准理由 → 主人单独报名活动 → 按上述双方交接流程执行并提交报告。
 
-## DOGO PawStyle 正式问卷（当前阶段）
+## DOGO PawStyle 正式问卷
 
 正式题库为 `apps/mobile/src/pawstyle/questionnaire.json`，逐字保留用户提供的 `DOGO-DPQ-CN5-v0.1` JSON：B1–B6、D1–D45、S1–S5，共 56 题。B3、B5、S3 按多选配置（B5、S3 后续可调整）；D 题共用原始 1–5 与 X 选项。B5 选“其他”、B6 选“有，请说明”时显示文字输入；S2、S4、S5 支持原提示文字输入。S1 保留原注释。
 
@@ -49,7 +49,7 @@ where id = (select id from auth.users where email = 'YOUR_ADMIN_EMAIL');
 
 每次选择、文字输入和导航都会自动保存到本机。点击“暂存，稍后继续”同步到账号，退出重进恢复位置和答案；使用另一设备时能恢复已暂存到账号的版本。草稿按账号、狗狗、问卷版本隔离，网络失败会提示重试，跨设备更新冲突会要求用户选择保留哪份草稿。清理浏览器数据会删除尚未同步的本机草稿。
 
-本阶段只有填写与答案保存，不计算分数、不反向计分、不生成五维或性格分类，也没有结果页面。旧 `/results` 地址兼容进入问卷，原有计分库和历史数据库保留但不接入 PawStyle；旧后台的题库发布入口也不控制 PawStyle 题库。
+问卷与草稿功能保持不变。第二阶段新增“保存并查看结果”和 `/results` 页面，详情见下文。原有旧版计分库及历史数据库保留但不接入 PawStyle；旧后台的题库发布入口也不控制 PawStyle 正式题库。
 
 **已有公网环境需先在 Supabase SQL Editor 执行 `supabase/migrations/202611020007_pawstyle.sql`，再部署最新 Web。** 新环境按编号执行所有迁移。新表 `pawstyle_questionnaires` 保存题库，`pawstyle_responses` 保存答案；`save_pawstyle` 验证版本、题号、选项和访问权限。未部署迁移时只能本机填写，账号读取或暂存会显示失败提示。
 
@@ -70,7 +70,7 @@ npm run build:mobile
 - `apps/admin`：Next.js 管理台，登录后由数据库再次校验每项管理操作。
 - `packages/dogo-ti`：历史 PRD 评分与回归验证，当前 PawStyle 不调用。
 - `packages/domain`：Supabase 客户端、状态文案、读取模型与业务命令。
-- `supabase/migrations`：关系数据、RLS、服务端计分和事务。关键写入经 `command()` 或 `save_pawstyle()`，没有客户端提交的最终分数。
+- `supabase/migrations`：关系数据、RLS、服务端计分和事务。关键写入经 `command()` 、`save_pawstyle()` 或 `submit_pawstyle()`，没有客户端提交的最终分数。
 - `tests`：纯函数与 PostgreSQL 集成验证。
 - `assets/brand`：用户提供的原始 Logo；没有改动品牌图形。
 
@@ -78,7 +78,7 @@ npm run build:mobile
 
 ## 待完成外部验收
 
-- 下一阶段再明确 PawStyle 的计分和结果规则，本阶段不包含这些功能。
+- 核对中文试用量表与正式商用许可；本次实现不等于量表验证或安全认证。
 - 配置真实 Supabase 开发项目，联调邮箱确认、重置邮件、存储和部署迁移。
 - 真机与真实并发连接测试，以及运营参数、资质审核、应急流程的团队验收。
 
@@ -90,7 +90,7 @@ npm run build:mobile
 
 在一个终端设置 `DOGO_TEST_HARNESS=1` 并运行 `node tests/browser-harness.mjs`。另两个终端分别给后台和移动端设置上述公开环境变量，URL 指向 `http://127.0.0.1:54329`，key 为 `browser-test-key`，启动两端后执行 `npm run test:browser`。每次验收前重启测试服务以重置样本数据。浏览器测试需要本机安装 Chrome。
 
-仅此临时环境的账号是 `owner@dogo.test`、`walker@dogo.test`、`admin@dogo.test`，密码均为 `DogoTest123!`。正式 PawStyle 问卷使用独立浏览器测试；业务数据库中保留的旧计分单元测试不代表 PawStyle 已启用计分。
+仅此临时环境的账号是 `owner@dogo.test`、`walker@dogo.test`、`admin@dogo.test`，密码均为 `DogoTest123!`。正式 PawStyle 问卷使用独立浏览器测试；旧版计分测试独立保留；PawStyle 使用提供的第二阶段计分实现和独立回归测试。
 
 ## 已知依赖告警
 
@@ -141,3 +141,30 @@ npm run test:preview
 ## PawStyle 浏览器验收
 
 使用独立端口避免影响其他演示：测试服务终端设置 `DOGO_TEST_HARNESS=1`、`DOGO_TEST_PORT=54331` 后运行 `node tests/browser-harness.mjs`；Expo 终端设置 `EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54331`、`EXPO_PUBLIC_SUPABASE_ANON_KEY=browser-test-key`，在 `apps/mobile` 运行 `npx expo start --port 8083`；根目录运行 `npm run test:pawstyle`。每次完整验收前重启测试服务以重置内存数据。
+
+
+## PawStyle 第二阶段：结果与复测
+
+沿用 Expo 58 / React Native / Expo Router，不重构问卷或数据库草稿。提供的 `pawstyle-scoring.ts` 原样保存在 `apps/mobile/src/pawstyle/`；`profile.ts` 将现有 `{questionId: {value, text}}` 答案适配为核心题原值并生成观察基础提醒。四张原始 PNG 放在 Expo 应用的 `apps/mobile/public/images/pawstyle/`，导出后网址为清单中的 `/images/pawstyle/*.png`；原生端通过同一文件的静态 require 引用。
+
+点击“保存并查看结果”会先保存当前答案，再由服务器以 `mean-strict-v1` 计算并建立结果记录。分面三题全有效、因子所有分面全有效才计算；X 和未答不插值；只用 E/P 两轴分类。完整结果包括正式类型与图片、E/P 两轴标签、五因子、15 分面、有效核心题数、缺失题号、观察背景提示、独立 S1–S5 事件及版本。混合和待补充使用 DOGO 通用图片；4:3 上方裁切隐藏原图内嵌的非正式英文标题。
+
+结果表 `pawstyle_results` 保存整份原始 B/D/S 答案、反向处理值、15 分面、五因子、E/P、类型、完整度、版本和时间，用户仅可读取自己的记录，不可直接更新或删除。服务端从已保存草稿计算，不接受客户端提交的最终分数；同一草稿修订的重复提交返回同一记录。修改答案并复测会创建新草稿修订和新结果，旧记录不受影响。单独暂存仍不会生成结果。已有草稿无需转换，保存并查看结果即可计分。
+
+### 公网部署
+
+在 Supabase SQL Editor 执行 `supabase/migrations/202611020008_pawstyle_results.sql`（需先完成 007 迁移），再部署最新 Expo Web。无需更改环境变量。检查四个 `/images/pawstyle/*.png` 地址返回 PNG，而非 SPA 首页。此迁移不修改现有 Pack 安全审核或预约权限。
+
+### 在 App 中验收
+
+1. 主人登录 → 首页“填写 PawStyle 问卷”或“我的 → PawStyle 问卷与草稿”，选择狗狗。
+2. 继续已有草稿，或填写 B、D、S；可以暂存、退出并重新进入。
+3. 点击“保存并查看结果”。D 题全部选 3 应为混合倾向；D17 选 X 时 P 和相关因子待补充，不分配四类画像。
+4. 查看两轴、五维、完整度、观察背景、独立情境和版本；点击“查看 15 个分面”。
+5. 点击“修改答案并复测”，修改答案后再次保存并查看结果。结果页底部能切换历次记录；“我的 → PawStyle 结果与历史”可重新访问。
+
+### 自动验证
+
+`npm test` 验证四类、缺失、中间值、反向计分、轻微分界、图片内容与清单一致、前后端数值一致及历史权限。`tests/pawstyle-samples.json` 中的 example 是为了核对实施说明所列数值而构造的 45 题测试数据，不冒充未提供的团队原始示例答案。
+
+独立测试环境：`DOGO_TEST_HARNESS=1`、`DOGO_TEST_PORT=54332` 启动 `node tests/browser-harness.mjs`；Expo 设置 URL 为 `http://127.0.0.1:54332`、key 为 `browser-test-key`，运行 `npx expo start --port 8084`。执行 `npm run test:pawstyle-results` 检查所有类型、混合、待补充、画像加载和裁切、历史及结果保存失败重试。每次完整测试先重启内存测试服务。原问卷回归用 `DOGO_PAWSTYLE_PREVIEW_URL=http://localhost:8084 npm run test:pawstyle`（PowerShell 用 `$env:DOGO_PAWSTYLE_PREVIEW_URL='http://localhost:8084'` 设置），两套测试之间也需重置服务。

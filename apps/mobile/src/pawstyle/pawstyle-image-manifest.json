@@ -1,0 +1,40 @@
+{
+  "assetVersion": "temporary-original-2026-11-02",
+  "note": "临时图片仅为视觉展示；原图嵌入的 Friendly/Social、Energetic/Adventurous、Smart/Curious、Calm/Gentle 并非原量表的正式类型，结果页用以下官方类型名，图片建议 CSS 裁切隐藏原图下部文字。混合倾向与待补充状态不对应任何类型图。",
+  "imageDisplay": {
+    "containerAspectRatio": "4 / 3",
+    "objectFit": "cover",
+    "objectPosition": "center top"
+  },
+  "types": {
+    "EP": {
+      "nickname": "Spark",
+      "titleZh": "热情玩伴型",
+      "descriptionZh": "较容易兴奋，对问卷所描述的玩耍兴趣较强。",
+      "image": "/images/pawstyle/EP_Spark.png",
+      "sourceCaption": "Energetic / Adventurous"
+    },
+    "CP": {
+      "nickname": "Sunny",
+      "titleZh": "平和玩伴型",
+      "descriptionZh": "表现较平缓，对问卷所描述的玩耍兴趣较强。",
+      "image": "/images/pawstyle/CP_Sunny.png",
+      "sourceCaption": "Friendly / Social"
+    },
+    "EL": {
+      "nickname": "Scout",
+      "titleZh": "活跃观察型",
+      "descriptionZh": "较容易兴奋，对问卷所描述的玩耍兴趣较弱。",
+      "image": "/images/pawstyle/EL_Scout.png",
+      "sourceCaption": "Smart / Curious"
+    },
+    "CL": {
+      "nickname": "Cloud",
+      "titleZh": "悠然观察型",
+      "descriptionZh": "表现较平缓，对问卷所描述的玩耍兴趣较弱。",
+      "image": "/images/pawstyle/CL_Cloud.png",
+      "sourceCaption": "Calm / Gentle"
+    }
+  },
+  "fallbackImage": null
+}
