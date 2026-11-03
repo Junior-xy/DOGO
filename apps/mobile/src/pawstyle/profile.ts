@@ -28,8 +28,31 @@ export function observationNotes(answers: Answers): string[] {
     notes.push("近期身体状态或生活环境有变化");
   return notes;
 }
+// Display copy is separate from the supplied scoring reference and saved history.
+const descriptions: Record<StyleCode, string> = {
+  EP: "较容易兴奋，玩耍兴趣较强。",
+  CP: "比较平和，玩耍兴趣较强。",
+  EL: "较容易兴奋，玩耍兴趣较弱。",
+  CL: "比较平和，玩耍兴趣较弱。",
+};
 export function profileMeta(code: StyleCode | null) {
-  return code ? styleImages[code] : null;
+  return code
+    ? { ...styleImages[code], descriptionZh: descriptions[code] }
+    : null;
+}
+export function profileDescription(result: PawStyleResult): string {
+  if (result.style.code) return descriptions[result.style.code];
+  if (result.style.status === "pending")
+    return "还有一些情况没观察到或没填，补充后再来看看它的风格吧。";
+  const energy =
+    result.E === 3 ? "兴奋程度适中" : result.E! > 3 ? "较容易兴奋" : "比较平和";
+  const play =
+    result.P === 3
+      ? "玩耍兴趣适中"
+      : result.P! > 3
+        ? "玩耍兴趣较强"
+        : "玩耍兴趣较弱";
+  return `${energy}，${play}。`;
 }
 export type ProfileRecord = {
   id: string;

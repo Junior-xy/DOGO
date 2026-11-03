@@ -12,7 +12,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { BrandLogo } from "../BrandLogo";
 import { tokens } from "@dogo/ui";
 import { formatScore, type StyleCode } from "./pawstyle-scoring";
-import { observationNotes, profileMeta, type ProfileRecord } from "./profile";
+import {
+  observationNotes,
+  profileMeta,
+  profileDescription,
+  type ProfileRecord,
+} from "./profile";
 import { questions } from "./model";
 const c = tokens.color;
 const nativeImages = {
@@ -145,9 +150,7 @@ export function PawStyleResults({
             ? `${result.style.code} ${meta.nickname} · ${meta.titleZh}`
             : result.style.label}
         </Text>
-        <Text style={s.body}>
-          {meta?.descriptionZh ?? result.style.description}
-        </Text>
+        <Text style={s.body}>{profileDescription(result)}</Text>
         <View style={s.tags}>
           {result.style.tags
             .filter((t) => t !== "接近分界，倾向轻微")
@@ -350,7 +353,9 @@ const s = StyleSheet.create({
   body: { fontSize: 16, lineHeight: 25, color: c.ink },
   caption: { fontSize: 13, lineHeight: 22, color: c.muted },
   crop: {
-    width: "100%",
+    width: "88%",
+    maxWidth: 360,
+    alignSelf: "center",
     aspectRatio: 4 / 3,
     overflow: "hidden",
     borderRadius: 18,
@@ -358,10 +363,11 @@ const s = StyleSheet.create({
   },
   portrait: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "133.333333%",
+    // Zoom into the illustration, excluding its white frame and caption.
+    top: "-12%",
+    left: "-8%",
+    width: "116%",
+    height: "154.666667%",
   },
   fallback: {
     alignItems: "center",

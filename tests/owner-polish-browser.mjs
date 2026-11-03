@@ -103,6 +103,26 @@ try {
       .getByRole("tab", { name: "遛狗活动", exact: true })
       .getByTestId("leashed-dog-icon"),
   ).toBeVisible();
+  const activityIcon = page
+    .getByRole("tab", { name: "遛狗活动", exact: true })
+    .getByTestId("leashed-dog-icon");
+  expect((await activityIcon.boundingBox()).width).toBe(20);
+  const homeLabel = await page
+    .getByText("首页", { exact: true })
+    .filter({ visible: true })
+    .boundingBox();
+  const activityLabel = await page
+    .getByText("遛狗活动", { exact: true })
+    .filter({ visible: true })
+    .boundingBox();
+  expect(activityLabel.y).toBeCloseTo(homeLabel.y, 1);
+  expect(
+    await activityIcon
+      .locator(":scope > div")
+      .evaluateAll((nodes) => [
+        ...new Set(nodes.map((n) => getComputedStyle(n).backgroundColor)),
+      ]),
+  ).toEqual(["rgb(149, 157, 136)"]);
   await expect(
     page.getByText("DOGO ti", { exact: true }).filter({ visible: true }),
   ).toBeVisible();
@@ -142,11 +162,26 @@ try {
     ).toHaveCount(0);
   }
   await page
-    .getByRole("button", { name: "查看品牌测试狗的虚拟形象", exact: true })
+    .getByRole("button", { name: "查看品牌测试狗的形象", exact: true })
     .click();
   await expect(
     page.getByRole("img", { name: "热情玩伴型画像", exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("我的狗狗", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("较容易兴奋，玩耍兴趣较强。", { exact: true }),
+  ).toBeVisible();
+  const portrait = page.getByTestId("pawstyle-portrait");
+  const mobileBox = await portrait.boundingBox();
+  expect(mobileBox.width).toBeLessThan(280);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await portrait.scrollIntoViewIfNeeded();
+  expect((await portrait.boundingBox()).width).toBeLessThanOrEqual(360);
+  await page.screenshot({
+    path: "test-results/owner-polish-profile-desktop.png",
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await portrait.scrollIntoViewIfNeeded();
   await page.screenshot({
     path: "test-results/owner-polish-profile.png",
     fullPage: false,

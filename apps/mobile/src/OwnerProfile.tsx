@@ -11,7 +11,11 @@ import type { Row } from "@dogo/domain";
 import { tokens } from "@dogo/ui";
 import { PawIcon } from "./BrandIcons";
 import { Portrait } from "./pawstyle/PawStyleResults";
-import { profileMeta, type ProfileRecord } from "./pawstyle/profile";
+import {
+  profileMeta,
+  profileDescription,
+  type ProfileRecord,
+} from "./pawstyle/profile";
 const c = tokens.color;
 export function OwnerProfile({
   api,
@@ -107,7 +111,7 @@ export function OwnerProfile({
         {button("管理狗狗档案", onDogs)}
       </View>
       <View style={[s.card, { backgroundColor: "#FFF1D9" }]}>
-        <Text style={s.title}>狗狗虚拟形象</Text>
+        <Text style={s.title}>我的狗狗</Text>
         <Text style={s.caption}>DOGO ti · 认识它的小小世界</Text>
         {dog ? (
           <>
@@ -116,7 +120,7 @@ export function OwnerProfile({
                 <Pressable
                   accessibilityRole="button"
                   key={d.id}
-                  accessibilityLabel={`查看${d.data.nickname}的虚拟形象`}
+                  accessibilityLabel={`查看${d.data.nickname}的形象`}
                   onPress={() => onSelect(d.id)}
                   style={[
                     s.choice,
@@ -149,7 +153,7 @@ export function OwnerProfile({
               {error
                 ? "暂时无法读取形象，稍后可以在结果页重试。"
                 : latest
-                  ? (meta?.descriptionZh ?? latest.result.style.description)
+                  ? profileDescription(latest.result)
                   : "完成 DOGO ti 问卷，了解它的日常倾向，生成属于它的形象档案。"}
             </Text>
             {button(

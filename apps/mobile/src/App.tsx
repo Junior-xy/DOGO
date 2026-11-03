@@ -1990,15 +1990,19 @@ export default function App() {
               onPress={() => go(id)}
               style={s.navItem}
             >
-              {id === "activities" && !isWalker ? (
-                <LeashedDogIcon color={activeTab === id ? c.green : c.muted} />
-              ) : (
-                <Text
-                  style={[s.navIcon, activeTab === id && { color: c.green }]}
-                >
-                  {icon}
-                </Text>
-              )}
+              <View style={s.navSymbol}>
+                {id === "activities" && !isWalker ? (
+                  <LeashedDogIcon
+                    color={activeTab === id ? c.green : "#959D88"}
+                  />
+                ) : (
+                  <Text
+                    style={[s.navIcon, activeTab === id && { color: c.green }]}
+                  >
+                    {icon}
+                  </Text>
+                )}
+              </View>
               <Text
                 style={[
                   s.navLabel,
@@ -2209,6 +2213,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
   },
   navItem: { flex: 1, alignItems: "center", gap: 4, minHeight: 44 },
+  navSymbol: {
+    width: 32,
+    height: 29,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   navIcon: { fontSize: 24, color: "#959D88" },
   navLabel: { fontSize: 11, color: "#959D88" },
 });

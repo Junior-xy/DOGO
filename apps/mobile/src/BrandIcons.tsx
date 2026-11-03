@@ -79,53 +79,53 @@ export function PackPaws({ color = tokens.color.green }: { color?: string }) {
     </View>
   );
 }
-// Native View strokes keep the same lightweight icon on Web, iOS and Android.
+// A compact, monochrome outline with the same stroke weight as the other tabs.
 export function LeashedDogIcon({
-  size = 29,
+  size = 20,
   color = tokens.color.green,
 }: {
   size?: number;
   color?: string;
 }) {
-  const unit = size / 32;
+  const unit = size / 24;
+  const stroke = 1.1 * unit;
   const paths = [
     [
-      [5, 17],
-      [2, 17],
-      [2, 14],
-      [6, 12],
-      [8, 9],
-      [12, 10],
-      [14, 14],
-      [14, 18],
-      [23, 18],
-      [27, 15],
-      [29, 16],
+      [3, 12],
+      [1.5, 11],
+      [1.5, 9.5],
+      [5, 8.5],
+      [6, 5.5],
+      [9, 6.5],
+      [10, 11.5],
+      [18, 11.5],
+      [21, 8.5],
     ],
     [
-      [6, 18],
-      [7, 23],
-      [9, 24],
-      [9, 29],
-      [12, 29],
-      [13, 24],
-      [22, 24],
-      [23, 29],
-      [26, 29],
-      [26, 22],
-      [25, 18],
+      [5, 12],
+      [7, 16],
+      [8, 16],
+      [8, 21],
+      [10, 21],
     ],
     [
-      [9, 12],
-      [9, 17],
-      [12, 18],
-      [14, 15],
+      [8, 16],
+      [18, 16],
+      [18, 21],
+      [20, 21],
     ],
     [
-      [13, 19],
-      [17, 12],
-      [20, 3],
-      [25, 3],
+      [18, 11.5],
+      [18, 16],
+    ],
+    [
+      [8, 7],
+      [8.5, 10],
+    ],
+    [
+      [7, 12],
+      [12, 3],
+      [16, 3],
     ],
   ];
   return (
@@ -136,19 +136,19 @@ export function LeashedDogIcon({
     >
       {paths.flatMap((points, p) =>
         points.slice(1).map(([x2, y2], i) => {
-          const [x1, y1] = points[i],
-            length = Math.hypot(x2 - x1, y2 - y1) * unit;
+          const [x1, y1] = points[i];
+          const length = Math.hypot(x2 - x1, y2 - y1) * unit;
           return (
             <View
               key={`${p}-${i}`}
               style={{
                 position: "absolute",
-                left: ((x1 + x2) / 2) * unit - length / 2,
-                top: ((y1 + y2) / 2) * unit - unit,
-                width: length,
-                height: 2 * unit,
-                borderRadius: unit,
-                backgroundColor: p === 3 ? tokens.color.orange : color,
+                left: ((x1 + x2) / 2) * unit - (length + stroke) / 2,
+                top: ((y1 + y2) / 2) * unit - stroke / 2,
+                width: length + stroke,
+                height: stroke,
+                borderRadius: stroke / 2,
+                backgroundColor: color,
                 transform: [
                   {
                     rotate: `${(Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI}deg`,
@@ -159,17 +159,6 @@ export function LeashedDogIcon({
           );
         }),
       )}
-      <View
-        style={{
-          position: "absolute",
-          left: 5.5 * unit,
-          top: 13 * unit,
-          width: 1.7 * unit,
-          height: 1.7 * unit,
-          borderRadius: unit,
-          backgroundColor: color,
-        }}
-      />
     </View>
   );
 }

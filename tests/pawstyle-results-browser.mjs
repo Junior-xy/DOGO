@@ -111,8 +111,10 @@ try {
       const image = await img.boundingBox();
       expect(box.width / box.height).toBeCloseTo(4 / 3, 2);
       expect(image.width / image.height).toBeCloseTo(1, 2);
-      expect(image.y).toBeCloseTo(box.y, 1);
-      expect(box.height / image.height).toBeCloseTo(0.75, 2);
+      expect(box.width).toBeLessThanOrEqual(360);
+      expect((box.y - image.y) / box.height).toBeCloseTo(0.12, 2);
+      expect((box.x - image.x) / box.width).toBeCloseTo(0.08, 2);
+      expect(box.height / image.height).toBeCloseTo(0.75 / 1.16, 2);
       const asset = await page.request.get(base + label.image);
       expect(asset.status()).toBe(200);
       expect(asset.headers()["content-type"]).toContain("image/png");

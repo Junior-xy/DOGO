@@ -12,6 +12,7 @@ import {
   scoreAnswers,
   observationNotes,
   profileMeta,
+  profileDescription,
   styleImages,
 } from "../apps/mobile/src/pawstyle/profile";
 import samples from "./pawstyle-samples.json";
@@ -52,7 +53,12 @@ describe("PawStyle supplied phase 2 scoring", () => {
       const r = scorePawStyle(samples[code]);
       expect(r.style.code).toBe(code);
       expect(r.style.status).toBe("classified");
-      expect(profileMeta(code)).toMatchObject(STYLE_META[code]);
+      const { descriptionZh: originalDescription, ...identity } =
+        STYLE_META[code];
+      expect(profileMeta(code)).toMatchObject(identity);
+      expect(profileMeta(code)?.descriptionZh).not.toContain("问卷所描述");
+      expect(profileDescription(r)).toBe(profileMeta(code)?.descriptionZh);
+      expect(r.style.description).toBe(originalDescription);
       const file = readFileSync(`apps/mobile/public${styleImages[code].image}`);
       expect(file.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
       expect(createHash("sha256").update(file).digest("hex")).toBe(
@@ -125,5 +131,25 @@ describe("PawStyle supplied phase 2 scoring", () => {
         B4: { value: "多数题能想到例子" },
       }),
     ).toEqual([]);
+  });
+  it("uses everyday copy for all types, mixed and incomplete results without changing historical records", () => {
+    const expected = {
+      EP: "较容易兴奋，玩耍兴趣较强。",
+      CP: "比较平和，玩耍兴趣较强。",
+      EL: "较容易兴奋，玩耍兴趣较弱。",
+      CL: "比较平和，玩耍兴趣较弱。",
+    };
+    for (const code of ["EP", "CP", "EL", "CL"] as const) {
+      const record = scorePawStyle(samples[code]);
+      const original = structuredClone(record);
+      expect(profileDescription(record)).toBe(expected[code]);
+      expect(record).toEqual(original);
+    }
+    expect(profileDescription(scorePawStyle(samples.mixed))).toBe(
+      "兴奋程度适中，玩耍兴趣适中。",
+    );
+    expect(profileDescription(scorePawStyle(samples.pending))).toBe(
+      "还有一些情况没观察到或没填，补充后再来看看它的风格吧。",
+    );
   });
 });
