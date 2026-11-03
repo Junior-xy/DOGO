@@ -28,10 +28,18 @@ import {
   type Store,
   type Row,
 } from "@dogo/domain";
+import { PawIcon, PackPaws, LeashedDogIcon } from "./BrandIcons";
+import { BrandLogo } from "./BrandLogo";
+import { OwnerProfile } from "./OwnerProfile";
 import { PawStyleResults } from "./pawstyle/PawStyleResults";
 import { PawStyle } from "./pawstyle/PawStyle";
 import { useDraft } from "./DraftContext";
 import { tokens } from "@dogo/ui";
+// Supabase may consume the recovery hash before this route subscribes to Auth.
+let pendingPasswordRecovery =
+  Platform.OS === "web" &&
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.hash.slice(1)).get("type") === "recovery";
 const api = client(
   process.env.EXPO_PUBLIC_SUPABASE_URL,
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
@@ -261,6 +269,7 @@ export default function App() {
     params = useLocalSearchParams<{
       screen?: string;
       kind?: string;
+      settings?: string;
       slot?: string;
       pack?: string;
     }>(),
@@ -279,6 +288,22 @@ export default function App() {
     params.kind === "pack" || page === "packs" ? "pack" : "solo",
   );
   const [publishKind, setPublishKind] = useState("solo");
+  const [deleteDog, setDeleteDog] = useState<Row | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(
+    params.settings === "password" ||
+      (page === "profile" && pendingPasswordRecovery),
+  );
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  useEffect(() => {
+    if (
+      page === "profile" &&
+      (params.settings === "password" || pendingPasswordRecovery)
+    ) {
+      setPasswordOpen(true);
+      pendingPasswordRecovery = false;
+    }
+  }, [page, params.settings]);
   useEffect(() => {
     setBookingKind(
       params.kind === "pack" || page === "packs" ? "pack" : "solo",
@@ -291,7 +316,9 @@ export default function App() {
   useEffect(() => {
     if (uid && uid !== userId) {
       setUserId(uid);
-      setSelectedDog(store.dogs.find((d) => d.owner_id === uid)?.id ?? "");
+      setSelectedDog(
+        store.dogs.find((d) => d.owner_id === uid && !d.deleted_at)?.id ?? "",
+      );
     }
   }, [uid, userId]);
   async function refresh() {
@@ -306,7 +333,18 @@ export default function App() {
       if (data.session) {
         const next = await snapshot(api);
         setStore(next);
-        setSelectedDog((old) => old || next.dogs[0]?.id || "");
+        setSelectedDog((old) =>
+          next.dogs.some(
+            (d) =>
+              d.id === old &&
+              !d.deleted_at &&
+              d.owner_id === data.session?.user.id,
+          )
+            ? old
+            : (next.dogs.find(
+                (d) => !d.deleted_at && d.owner_id === data.session?.user.id,
+              )?.id ?? ""),
+        );
       } else setStore(emptyStore());
     } catch (e) {
       setError((e as Error).message);
@@ -316,9 +354,10 @@ export default function App() {
   }
   useEffect(() => {
     void refresh();
-    const sub = api?.auth.onAuthStateChange(() =>
-      setTimeout(() => void refresh(), 0),
-    );
+    const sub = api?.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setPasswordOpen(true);
+      setTimeout(() => void refresh(), 0);
+    });
     return () => sub?.data.subscription.unsubscribe();
   }, []);
   useEffect(() => {
@@ -334,7 +373,12 @@ export default function App() {
           refresh_token,
         });
         if (error) setError(error.message);
-        else router.push("/profile");
+        else
+          router.push(
+            params.get("type") === "recovery"
+              ? "/profile?settings=password"
+              : "/profile",
+          );
       }
     }
     void Linking.getInitialURL().then(acceptLink);
@@ -346,7 +390,7 @@ export default function App() {
   }, []);
   const me = store.profiles.find((p) => p.id === uid),
     isWalker = me?.role === "walker",
-    dogs = store.dogs.filter((d) => d.owner_id === uid),
+    dogs = store.dogs.filter((d) => d.owner_id === uid && !d.deleted_at),
     dog = dogs.find((d) => d.id === selectedDog);
   const durations: number[] = store.settings[0]?.data.durations ?? [
     15, 30, 45, 60, 90, 120,
@@ -433,8 +477,8 @@ export default function App() {
   const title: Record<string, string> = {
     home: isWalker ? "今天，一起好好散步" : "每一次出门，都有好时光",
     dogs: "我的狗狗",
-    assessment: "DOGO PawStyle 问卷",
-    results: "DOGO PawStyle 结果",
+    assessment: "DOGO ti 问卷",
+    results: "DOGO ti 结果",
     book: "预约一次好好散步",
     solo: "预约一次好好散步",
     packs: "预约一次好好散步",
@@ -456,10 +500,7 @@ export default function App() {
             onPress={() => go("home")}
             style={s.logoRow}
           >
-            <Image
-              source={require("../../../assets/brand/dogo-original.png")}
-              style={s.logo}
-            />
+            <BrandLogo size={40} style={s.logo} />
             <Text style={s.wordmark}>DOGO</Text>
           </Pressable>
           <Pressable
@@ -504,10 +545,7 @@ export default function App() {
               <View style={s.hero}>
                 <Text style={s.heroTitle}>陪它探索，{"\n"}也让你安心。</Text>
                 <Text style={s.body}>专属散步、友好小队，和更懂它的陪伴。</Text>
-                <Image
-                  source={require("../../../assets/brand/dogo-original.png")}
-                  style={s.heroImage}
-                />
+                <BrandLogo size={180} style={s.heroImage} />
               </View>
               <Card>
                 <Text style={s.h2}>欢迎来到 DOGO</Text>
@@ -715,10 +753,7 @@ export default function App() {
                             预约一次散步 ↗
                           </Button>
                         </View>
-                        <Image
-                          source={require("../../../assets/brand/dogo-original.png")}
-                          style={s.heroImage}
-                        />
+                        <BrandLogo size={180} style={s.heroImage} />
                       </View>
                       <View style={s.row}>
                         <Text style={s.h2}>我的小伙伴</Text>
@@ -765,27 +800,31 @@ export default function App() {
                       )}
                       <Pressable onPress={() => begin()}>
                         <Card tint>
-                          <Text style={s.eyebrow}>DOGO PAWSTYLE</Text>
+                          <Text style={s.eyebrow}>DOGO ti</Text>
                           <Text style={s.h2}>记录它的日常小习惯。</Text>
                           <Text style={s.body}>
                             从日常观察出发，填写问卷，随时保存和继续。
                           </Text>
-                          <Text style={s.topLink}>填写 PawStyle 问卷 →</Text>
+                          <Text style={s.topLink}>填写 DOGO ti 问卷 →</Text>
                         </Card>
                       </Pressable>
                       <View style={s.serviceGrid}>
                         <Pressable style={s.service} onPress={() => go("solo")}>
-                          <Text style={s.serviceIcon}>↗</Text>
+                          <View style={{ height: 52, marginBottom: 12 }}>
+                            <PawIcon size={38} />
+                          </View>
                           <Text style={s.h2}>Solo Walk</Text>
                           <Text style={s.caption}>
                             一对一专属陪伴{"\n"}按它的节奏慢慢走
                           </Text>
                         </Pressable>
                         <Pressable
-                          style={[s.service, { backgroundColor: "#F7EBCD" }]}
+                          style={[s.service, { backgroundColor: "#FFE8BE" }]}
                           onPress={() => go("packs")}
                         >
-                          <Text style={s.serviceIcon}>♧</Text>
+                          <View style={{ height: 52, marginBottom: 12 }}>
+                            <PackPaws />
+                          </View>
                           <Text style={s.h2}>Pack Walk</Text>
                           <Text style={s.caption}>
                             和新朋友一起出发{"\n"}人工审核，安心同行
@@ -807,6 +846,55 @@ export default function App() {
                         </Button>
                       </View>
                       <Photo path={d.data.image_path} />
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`删除${d.data.nickname}的档案`}
+                        onPress={() => setDeleteDog(d)}
+                        style={{ paddingVertical: 10 }}
+                      >
+                        <Text style={{ color: c.danger }}>删除档案</Text>
+                      </Pressable>
+                      {deleteDog?.id === d.id && (
+                        <View style={s.subcard}>
+                          <Text style={s.h2}>
+                            删除 {d.data.nickname} 的档案？
+                          </Text>
+                          <Text style={s.caption}>
+                            将从常用狗狗列表移除，历史订单和 DOGO ti
+                            记录会保留。未完成的订单需先处理。
+                          </Text>
+                          <Button
+                            disabled={deleting}
+                            onPress={() =>
+                              safe(async () => {
+                                setDeleting(true);
+                                try {
+                                  const { error } = await api!.rpc(
+                                    "delete_dog",
+                                    { p_dog_id: d.id },
+                                  );
+                                  if (error) throw new Error(error.message);
+                                  if (editDog?.id === d.id) setEditDog(null);
+                                  setDeleteDog(null);
+                                  await refresh();
+                                  setNotice("狗狗档案已删除");
+                                } finally {
+                                  setDeleting(false);
+                                }
+                              })
+                            }
+                          >
+                            {deleting ? "正在删除…" : "确认删除档案"}
+                          </Button>
+                          <Button
+                            secondary
+                            disabled={deleting}
+                            onPress={() => setDeleteDog(null)}
+                          >
+                            取消删除
+                          </Button>
+                        </View>
+                      )}
                       <Button
                         secondary
                         onPress={() => safe(() => uploadPhoto(d))}
@@ -1776,22 +1864,59 @@ export default function App() {
               {page === "profile" && (
                 <>
                   <Card>
-                    <Text style={s.h2}>{me?.display_name ?? "DOGO 用户"}</Text>
-                    <Pill status={me?.role} />
-                    <Button secondary onPress={() => go("dogs")}>
-                      我的狗狗档案
-                    </Button>
-                    <Button secondary onPress={() => go("assessment")}>
-                      PawStyle 问卷与草稿
-                    </Button>
-                    <Button secondary onPress={() => go("results")}>
-                      PawStyle 结果与历史
-                    </Button>
+                    <View style={s.row}>
+                      <View>
+                        <Text style={s.h2}>
+                          {me?.display_name ?? "DOGO 用户"}
+                        </Text>
+                        <Pill status={me?.role} />
+                      </View>
+                      <LeashedDogIcon size={44} />
+                    </View>
                     <Button secondary onPress={() => go("notifications")}>
                       消息中心
                     </Button>
                   </Card>
-                  {!isDemo && (
+                  {!isWalker && api && (
+                    <OwnerProfile
+                      api={api}
+                      userId={uid}
+                      dogs={dogs}
+                      selectedDog={selectedDog}
+                      onSelect={setSelectedDog}
+                      onDogs={() => go("dogs")}
+                      onQuestionnaire={() => go("assessment")}
+                      onResults={() => go("results")}
+                    />
+                  )}
+                  <View style={s.settingsSection}>
+                    <Text style={s.caption}>账号设置</Text>
+                    {!isDemo && (
+                      <Pressable
+                        accessibilityRole="button"
+                        aria-expanded={passwordOpen}
+                        onPress={() => setPasswordOpen(!passwordOpen)}
+                        style={s.settingsRow}
+                      >
+                        <Text style={s.caption}>修改密码</Text>
+                        <Text style={s.caption}>
+                          {passwordOpen ? "收起" : "›"}
+                        </Text>
+                      </Pressable>
+                    )}
+                    <Pressable
+                      accessibilityRole="button"
+                      aria-expanded={privacyOpen}
+                      onPress={() => setPrivacyOpen(!privacyOpen)}
+                      style={s.settingsRow}
+                    >
+                      <Text style={s.caption}>隐私与资料管理</Text>
+                      <Text style={s.caption}>
+                        {privacyOpen ? "收起" : "›"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  {!isDemo && passwordOpen && (
                     <Card>
                       <Text style={s.h2}>重置密码</Text>
                       <Form
@@ -1811,29 +1936,34 @@ export default function App() {
                       />
                     </Card>
                   )}
-                  <Card>
-                    <Text style={s.h2}>隐私与资料管理</Text>
-                    <Text style={s.body}>
-                      可申请导出或删除资料。运营将核实身份和服务留档要求后办理。
-                    </Text>
-                    <Form
-                      fields={[
-                        {
-                          name: "kind",
-                          label: "申请类型",
-                          options: [
-                            { value: "export", label: "导出我的资料" },
-                            { value: "delete", label: "申请删除资料" },
-                          ],
-                        },
-                        { ...f("reason", "补充说明", "long"), optional: true },
-                      ]}
-                      label="提交资料申请"
-                      submit={async (v) => {
-                        await run("privacy.request", v);
-                      }}
-                    />
-                  </Card>
+                  {privacyOpen && (
+                    <Card>
+                      <Text style={s.h2}>隐私与资料管理</Text>
+                      <Text style={s.body}>
+                        可申请导出或删除资料。运营将核实身份和服务留档要求后办理。
+                      </Text>
+                      <Form
+                        fields={[
+                          {
+                            name: "kind",
+                            label: "申请类型",
+                            options: [
+                              { value: "export", label: "导出我的资料" },
+                              { value: "delete", label: "申请删除资料" },
+                            ],
+                          },
+                          {
+                            ...f("reason", "补充说明", "long"),
+                            optional: true,
+                          },
+                        ]}
+                        label="提交资料申请"
+                        submit={async (v) => {
+                          await run("privacy.request", v);
+                        }}
+                      />
+                    </Card>
+                  )}
                   <Button
                     secondary
                     onPress={() =>
@@ -1860,9 +1990,15 @@ export default function App() {
               onPress={() => go(id)}
               style={s.navItem}
             >
-              <Text style={[s.navIcon, activeTab === id && { color: c.green }]}>
-                {icon}
-              </Text>
+              {id === "activities" && !isWalker ? (
+                <LeashedDogIcon color={activeTab === id ? c.green : c.muted} />
+              ) : (
+                <Text
+                  style={[s.navIcon, activeTab === id && { color: c.green }]}
+                >
+                  {icon}
+                </Text>
+              )}
               <Text
                 style={[
                   s.navLabel,
@@ -1918,7 +2054,7 @@ const s = StyleSheet.create({
   body: { fontSize: 14, lineHeight: 25, color: c.muted, marginVertical: 10 },
   caption: { fontSize: 12, lineHeight: 21, color: c.muted },
   hero: {
-    backgroundColor: "#EAF1D7",
+    backgroundColor: "#FFF0D2",
     borderRadius: 28,
     padding: 26,
     minHeight: 300,
@@ -1935,8 +2071,8 @@ const s = StyleSheet.create({
   heroTag: { fontSize: 11, color: c.green },
   heroImage: {
     position: "absolute",
-    width: 220,
-    height: 220,
+    width: 180,
+    height: 180,
     right: -65,
     bottom: -25,
     transform: [{ rotate: "-7deg" }],
@@ -1963,7 +2099,7 @@ const s = StyleSheet.create({
   secondary: { backgroundColor: "#EEF3E5" },
   label: { fontSize: 13, color: c.muted, marginBottom: 8 },
   input: {
-    backgroundColor: "#FAFBF7",
+    backgroundColor: "#FFFCF6",
     borderColor: "#DDE3D3",
     borderWidth: 1,
     borderRadius: 12,
@@ -2025,9 +2161,17 @@ const s = StyleSheet.create({
     flex: 1,
     padding: 20,
     borderRadius: 22,
-    backgroundColor: "#E8EFDD",
+    backgroundColor: "#E9EFDA",
   },
-  serviceIcon: { fontSize: 36, color: c.green, marginBottom: 22 },
+  settingsSection: { paddingHorizontal: 12, paddingTop: 16, gap: 8 },
+  settingsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: c.line,
+  },
   subcard: {
     backgroundColor: "#F5F7EE",
     padding: 18,

@@ -231,7 +231,7 @@ try {
   await expect(fresh.getByText("我的小伙伴", { exact: true })).toBeVisible();
   await fresh.goto(base + "/profile");
   await fresh
-    .getByRole("button", { name: "PawStyle 问卷与草稿", exact: true })
+    .getByRole("button", { name: "填写 DOGO ti 问卷", exact: true })
     .click();
   await expect(
     fresh.getByText("已作答 56 / 56 题 · 100%", { exact: true }),

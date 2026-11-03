@@ -19,7 +19,8 @@
     "test:requests": "node tests/owner-requests.mjs",
     "test:signup": "node tests/signup-roles.mjs",
     "test:pawstyle": "node tests/pawstyle-browser.mjs",
-    "test:pawstyle-results": "node tests/pawstyle-results-browser.mjs"
+    "test:pawstyle-results": "node tests/pawstyle-results-browser.mjs",
+    "test:owner-polish": "node tests/owner-polish-browser.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",

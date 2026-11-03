@@ -7,8 +7,17 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "plugins": ["expo-router"],
-    "web": { "bundler": "metro", "output": "single" },
-    "ios": { "supportsTablet": true },
-    "android": { "package": "com.dogo.app" }
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "../../assets/brand/dogo-logo.png"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.dogo.app"
+    },
+    "icon": "../../assets/brand/dogo-logo.png"
   }
 }

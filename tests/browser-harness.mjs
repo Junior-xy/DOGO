@@ -18,6 +18,7 @@ for (const f of [
   "202611020006_signup_roles.sql",
   "202611020007_pawstyle.sql",
   "202611020008_pawstyle_results.sql",
+  "202611020009_dog_removal.sql",
 ])
   await db.exec(
     readFileSync(
@@ -254,6 +255,14 @@ async function handle(req, res) {
         (
           await db.query("select public.submit_pawstyle($1::jsonb) result", [
             JSON.stringify(body.payload),
+          ])
+        ).rows[0].result,
+      );
+    if (url.pathname === "/rest/v1/rpc/delete_dog")
+      return send(
+        (
+          await db.query("select public.delete_dog($1::uuid) result", [
+            body.p_dog_id,
           ])
         ).rows[0].result,
       );

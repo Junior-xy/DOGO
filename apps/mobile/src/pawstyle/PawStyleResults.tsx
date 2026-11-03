@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { BrandLogo } from "../BrandLogo";
 import { tokens } from "@dogo/ui";
 import { formatScore, type StyleCode } from "./pawstyle-scoring";
 import { observationNotes, profileMeta, type ProfileRecord } from "./profile";
@@ -20,17 +21,13 @@ const nativeImages = {
   EL: require("../../public/images/pawstyle/EL_Scout.png"),
   CL: require("../../public/images/pawstyle/CL_Cloud.png"),
 };
-function Portrait({ code }: { code: StyleCode | null }) {
+export function Portrait({ code }: { code: StyleCode | null }) {
   const meta = profileMeta(code);
   const [failed, setFailed] = useState(false);
   if (!meta || !code || failed)
     return (
       <View style={s.fallback}>
-        <Image
-          source={require("../../../../assets/brand/dogo-original.png")}
-          accessibilityLabel="DOGO 通用画像"
-          style={{ width: 120, height: 120 }}
-        />
+        <BrandLogo size={120} label="DOGO 通用画像" />
         <Text style={s.caption}>
           {failed ? "类型画像暂时无法加载" : "继续观察，慢慢了解它"}
         </Text>
@@ -111,7 +108,7 @@ export function PawStyleResults({
   if (loading)
     return (
       <ActivityIndicator
-        accessibilityLabel="正在读取 PawStyle 结果"
+        accessibilityLabel="正在读取 DOGO ti 结果"
         color={c.green}
       />
     );
@@ -127,7 +124,7 @@ export function PawStyleResults({
   if (!record)
     return (
       <View style={s.card}>
-        <Text style={s.title}>还没有 PawStyle 结果</Text>
+        <Text style={s.title}>还没有 DOGO ti 结果</Text>
         <Text style={s.body}>
           填写问卷后，点击“保存并查看结果”。已有草稿可以继续填写。
         </Text>
@@ -141,7 +138,7 @@ export function PawStyleResults({
   return (
     <View style={s.stack}>
       <View style={s.card}>
-        <Text style={s.eyebrow}>{nickname} · PAWSTYLE</Text>
+        <Text style={s.eyebrow}>{nickname} · DOGO ti</Text>
         <Portrait key={record.id} code={result.style.code} />
         <Text accessibilityRole="header" style={s.title}>
           {meta

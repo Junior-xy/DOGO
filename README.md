@@ -45,7 +45,7 @@ where id = (select id from auth.users where email = 'YOUR_ADMIN_EMAIL');
 
 正式题库为 `apps/mobile/src/pawstyle/questionnaire.json`，逐字保留用户提供的 `DOGO-DPQ-CN5-v0.1` JSON：B1–B6、D1–D45、S1–S5，共 56 题。B3、B5、S3 按多选配置（B5、S3 后续可调整）；D 题共用原始 1–5 与 X 选项。B5 选“其他”、B6 选“有，请说明”时显示文字输入；S2、S4、S5 支持原提示文字输入。S1 保留原注释。
 
-首页和“我的 → PawStyle 问卷与草稿”可进入。逐题填写、分区跳转、上一题、下一题、已答题数和百分比均可用。答案以唯一 question ID 存储，例如 `{"D1":{"value":"X"},"B5":{"value":["召回","其他"],"text":"转圈"}}`。文字题可先输入说明，此时 value 为 null，尚不计入已答题数。补充文字选填，最多 2000 字。
+首页和“我的 → 狗狗虚拟形象 → 填写 DOGO ti 问卷”可进入。逐题填写、分区跳转、上一题、下一题、已答题数和百分比均可用。答案以唯一 question ID 存储，例如 `{"D1":{"value":"X"},"B5":{"value":["召回","其他"],"text":"转圈"}}`。文字题可先输入说明，此时 value 为 null，尚不计入已答题数。补充文字选填，最多 2000 字。
 
 每次选择、文字输入和导航都会自动保存到本机。点击“暂存，稍后继续”同步到账号，退出重进恢复位置和答案；使用另一设备时能恢复已暂存到账号的版本。草稿按账号、狗狗、问卷版本隔离，网络失败会提示重试，跨设备更新冲突会要求用户选择保留哪份草稿。清理浏览器数据会删除尚未同步的本机草稿。
 
@@ -157,14 +157,24 @@ npm run test:preview
 
 ### 在 App 中验收
 
-1. 主人登录 → 首页“填写 PawStyle 问卷”或“我的 → PawStyle 问卷与草稿”，选择狗狗。
+1. 主人登录 → 首页“填写 DOGO ti 问卷”或“我的 → 狗狗虚拟形象 → 填写 DOGO ti 问卷”，选择狗狗。
 2. 继续已有草稿，或填写 B、D、S；可以暂存、退出并重新进入。
 3. 点击“保存并查看结果”。D 题全部选 3 应为混合倾向；D17 选 X 时 P 和相关因子待补充，不分配四类画像。
 4. 查看两轴、五维、完整度、观察背景、独立情境和版本；点击“查看 15 个分面”。
-5. 点击“修改答案并复测”，修改答案后再次保存并查看结果。结果页底部能切换历次记录；“我的 → PawStyle 结果与历史”可重新访问。
+5. 点击“修改答案并复测”，修改答案后再次保存并查看结果。结果页底部能切换历次记录；“我的 → 狗狗虚拟形象 → 查看 DOGO ti 结果与历史”可重新访问。
 
 ### 自动验证
 
 `npm test` 验证四类、缺失、中间值、反向计分、轻微分界、图片内容与清单一致、前后端数值一致及历史权限。`tests/pawstyle-samples.json` 中的 example 是为了核对实施说明所列数值而构造的 45 题测试数据，不冒充未提供的团队原始示例答案。
 
 独立测试环境：`DOGO_TEST_HARNESS=1`、`DOGO_TEST_PORT=54332` 启动 `node tests/browser-harness.mjs`；Expo 设置 URL 为 `http://127.0.0.1:54332`、key 为 `browser-test-key`，运行 `npx expo start --port 8084`。执行 `npm run test:pawstyle-results` 检查所有类型、混合、待补充、画像加载和裁切、历史及结果保存失败重试。每次完整测试先重启内存测试服务。原问卷回归用 `DOGO_PAWSTYLE_PREVIEW_URL=http://localhost:8084 npm run test:pawstyle`（PowerShell 用 `$env:DOGO_PAWSTYLE_PREVIEW_URL='http://localhost:8084'` 设置），两套测试之间也需重置服务。
+
+## 品牌与主人档案更新
+
+界面名称统一为 **DOGO ti**；官方问卷原文、JSON 名称、版本号、计分函数和已有答案键保持不变。新版 Logo 原图保存在 `assets/brand/dogo-logo.png`，`BrandLogo.tsx` 只裁切显示外围黑边。主色使用奶油白、草绿和橙色。首页 Solo / Pack 分别使用单爪印和三爪印，主人活动导航使用牵引犬线条图标。
+
+“我的”页优先展示狗狗档案、DOGO ti 虚拟形象及结果入口，密码和隐私设置默认折叠；通过密码恢复链接进入时自动展开密码设置。
+
+**上线前**：在 Supabase SQL Editor 执行 `supabase/migrations/202611020009_dog_removal.sql`（依赖现有 001–008），再部署新版应用。删除按钮位于“我的 → 管理狗狗档案”，支持取消与确认。删除为归档操作：狗狗不再出现在预约、问卷和常用档案列表；历史服务、问卷和结果记录仍保存在数据库。存在未完成 Solo、Pack 订单或服务任务时禁止删除。仅狗主人能删除自己的档案，重复请求不会重复执行。
+
+验证：`npm test`、`npm run typecheck`、`npm run build:mobile`。另用独立测试服务端口 54333 和 Expo 8085（同上述方法设置测试环境变量）运行 `npm run test:owner-polish`，检查图标、形象与结果入口、折叠设置、删除取消/刷新/订单保护。用非演示 key `registration-test-key` 启动 Expo 可额外验证密码设置折叠。测试仅用本地合成账号；不要将测试地址和 key 用于正式部署。

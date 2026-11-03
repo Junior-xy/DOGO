@@ -51,6 +51,7 @@ beforeAll(async () => {
     "202611020006_signup_roles.sql",
     "202611020007_pawstyle.sql",
     "202611020008_pawstyle_results.sql",
+    "202611020009_dog_removal.sql",
   ])
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(`create schema storage;
@@ -1311,6 +1312,175 @@ describe("PostgreSQL transactions, RLS and full workflows", () => {
     }
     await db.exec("reset role; set role anon");
     await expect(submit(draft.id, 2)).rejects.toThrow("permission denied");
+    await db.exec("reset role");
+  });
+  it("archives only owned dogs, preserves assessment history and prevents future use", async () => {
+    await as(owner);
+    const id = await cmd("dog.save", { data: dogData });
+    const payload = {
+      dog_id: id,
+      version: "DOGO-DPQ-CN5-v0.1",
+      answers: { D1: { value: 3 } },
+      position: 6,
+      expected_revision: 0,
+    };
+    const draft = (
+      await db.query<any>("select public.save_pawstyle($1) result", [
+        JSON.stringify(payload),
+      ])
+    ).rows[0].result;
+    await db.query("select public.submit_pawstyle($1)", [
+      JSON.stringify({ response_id: draft.id, expected_revision: 1 }),
+    ]);
+    const remove = () => db.query("select public.delete_dog($1)", [id]);
+    for (const who of [other, walker, admin]) {
+      await as(who);
+      await expect(remove()).rejects.toThrow();
+    }
+    await db.exec("reset role; set role anon");
+    await expect(remove()).rejects.toThrow("permission denied");
+    await db.exec("reset role");
+    await db.query("update public.profiles set active=false where id=$1", [
+      owner,
+    ]);
+    await as(owner);
+    await expect(remove()).rejects.toThrow("主人权限");
+    await db.exec("reset role");
+    await db.query("update public.profiles set active=true where id=$1", [
+      owner,
+    ]);
+    await as(owner);
+    await remove();
+    await remove(); // A retry is safe.
+    expect(
+      (
+        await db.query<any>("select deleted_at from public.dogs where id=$1", [
+          id,
+        ])
+      ).rows[0].deleted_at,
+    ).toBeTruthy();
+    await expect(cmd("dog.save", { id, data: dogData })).rejects.toThrow(
+      "无权",
+    );
+    await expect(
+      db.query("select public.save_pawstyle($1)", [
+        JSON.stringify({ ...payload, expected_revision: 1 }),
+      ]),
+    ).rejects.toThrow("无权");
+    await expect(
+      cmd("solo.book", {
+        dog_id: id,
+        slot_id: slot,
+        duration: 30,
+        handoff: "入口",
+      }),
+    ).rejects.toThrow();
+    await db.exec("reset role");
+    expect(
+      (
+        await db.query(
+          "select * from public.pawstyle_results where dog_id=$1",
+          [id],
+        )
+      ).rows,
+    ).toHaveLength(1);
+    expect(
+      (
+        await db.query(
+          "select * from public.audit_logs where resource_id=$1 and action='dog.delete'",
+          [id],
+        )
+      ).rows,
+    ).toHaveLength(1);
+    await expect(
+      db.query(
+        "insert into public.solo_bookings(owner_id,dog_id,slot_id,data) values($1,$2,$3,'{}')",
+        [owner, id, slot],
+      ),
+    ).rejects.toThrow("已删除");
+    await expect(
+      db.query(
+        "insert into public.pack_applications(owner_id,dog_id,pack_id) values($1,$2,$3)",
+        [owner, id, pack],
+      ),
+    ).rejects.toThrow("已删除");
+  });
+  it("blocks removal for active Solo, Pack and tasks while preserving completed services", async () => {
+    await as(owner);
+    const id = await cmd("dog.save", { data: dogData });
+    await db.exec("reset role");
+    const soloId = (
+      await db.query<any>(
+        "insert into public.solo_bookings(owner_id,dog_id,slot_id,data) values($1,$2,$3,'{}') returning id",
+        [owner, id, slot],
+      )
+    ).rows[0].id;
+    const remove = () => db.query("select public.delete_dog($1)", [id]);
+    const blocked = async () => {
+      await as(owner);
+      await expect(remove()).rejects.toThrow("未完成");
+      await db.exec("reset role");
+    };
+    await blocked();
+    await db.query(
+      "update public.solo_bookings set status='completed' where id=$1",
+      [soloId],
+    );
+    const taskId = (
+      await db.query<any>(
+        "insert into public.walk_tasks(owner_id,dog_id,walker_id,solo_id) values($1,$2,$3,$4) returning id",
+        [owner, id, walker, soloId],
+      )
+    ).rows[0].id;
+    await blocked();
+    await db.query(
+      "update public.walk_tasks set status='reported' where id=$1",
+      [taskId],
+    );
+    const appId = (
+      await db.query<any>(
+        "insert into public.pack_applications(owner_id,dog_id,pack_id) values($1,$2,$3) returning id",
+        [owner, id, pack],
+      )
+    ).rows[0].id;
+    const member = (
+      await db.query<any>(
+        "insert into public.pack_memberships(owner_id,dog_id,pack_id,application_id) values($1,$2,$3,$4) returning id",
+        [owner, id, pack, appId],
+      )
+    ).rows[0].id;
+    const booking = (
+      await db.query<any>(
+        "insert into public.pack_event_bookings(owner_id,dog_id,event_id,membership_id) values($1,$2,$3,$4) returning id",
+        [owner, id, event, member],
+      )
+    ).rows[0].id;
+    await blocked();
+    await db.query(
+      "update public.pack_event_bookings set status='cancelled' where id=$1",
+      [booking],
+    );
+    await as(owner);
+    await remove();
+    expect(
+      (
+        await db.query<any>(
+          "select status from public.pack_applications where id=$1",
+          [appId],
+        )
+      ).rows[0].status,
+    ).toBe("rejected");
+    expect(
+      (
+        await db.query("select * from public.solo_bookings where id=$1", [
+          soloId,
+        ])
+      ).rows,
+    ).toHaveLength(1);
+    expect(
+      (await db.query("select * from public.walk_tasks where id=$1", [taskId]))
+        .rows,
+    ).toHaveLength(1);
     await db.exec("reset role");
   });
 });

@@ -21,6 +21,7 @@ export type Row = {
   start_at?: string;
   end_at?: string;
   created_at?: string;
+  deleted_at?: string | null;
   submitted_at?: string;
   read_at?: string;
   role?: string;
