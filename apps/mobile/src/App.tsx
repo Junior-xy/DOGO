@@ -1,3 +1,4 @@
+import { useLanguage, LanguageSwitch } from "./i18n/LanguageProvider";
 import { useEffect, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import { createURL } from "expo-linking";
@@ -23,7 +24,6 @@ import {
   snapshot,
   emptyStore,
   labels,
-  date,
   dogName,
   type Store,
   type Row,
@@ -122,7 +122,8 @@ function Card({
   );
 }
 function Pill({ status }: { status?: string }) {
-  return <Text style={s.pill}>{labels[status ?? ""] ?? status}</Text>;
+  const { tr } = useLanguage();
+  return <Text style={s.pill}>{tr(labels[status ?? ""] ?? status ?? "")}</Text>;
 }
 function Form({
   fields,
@@ -133,6 +134,7 @@ function Form({
   submit: (v: Record<string, string>) => Promise<void>;
   label?: string;
 }) {
+  const { tr, trMessage } = useLanguage();
   const [v, setV] = useState<Record<string, string>>(() =>
       Object.fromEntries(fields.map((f) => [f.name, f.value ?? ""])),
     ),
@@ -182,8 +184,8 @@ function Form({
         return (
           <View key={f.name}>
             <Text style={s.label}>
-              {f.label}
-              {f.optional ? "（选填）" : ""}
+              {tr(f.label)}
+              {f.optional ? tr("（选填）") : ""}
             </Text>
             {options ? (
               <View style={s.wrap}>
@@ -201,7 +203,9 @@ function Form({
                         color: v[f.name] === o.value ? c.green : c.muted,
                       }}
                     >
-                      {o.label}
+                      {["dog_id", "pack_id", "slot_id"].includes(f.name)
+                        ? o.label
+                        : tr(o.label)}
                     </Text>
                   </Pressable>
                 ))}
@@ -209,7 +213,7 @@ function Form({
             ) : f.type === "datetime" && Platform.OS === "web" ? (
               <input
                 type="datetime-local"
-                aria-label={f.label}
+                aria-label={tr(f.label)}
                 value={v[f.name] ?? ""}
                 onChange={(e) => setV({ ...v, [f.name]: e.target.value })}
                 style={{
@@ -226,9 +230,11 @@ function Form({
             ) : (
               <TextInput
                 placeholder={
-                  f.type === "datetime" ? "例如 2026-11-10 09:00" : undefined
+                  f.type === "datetime"
+                    ? tr("例如 2026-11-10 09:00")
+                    : undefined
                 }
-                accessibilityLabel={f.label}
+                accessibilityLabel={tr(f.label)}
                 value={v[f.name] ?? ""}
                 onChangeText={(x) => setV({ ...v, [f.name]: x })}
                 style={[
@@ -255,16 +261,26 @@ function Form({
       })}
       {!!error && (
         <Text accessibilityRole="alert" style={s.error}>
-          {error}
+          {trMessage(error)}
         </Text>
       )}
       <Button disabled={busy} onPress={() => void send()}>
-        {busy ? "正在保存…" : label}
+        {busy ? tr("正在保存…") : tr(label)}
       </Button>
     </View>
   );
 }
 export default function App() {
+  const { tr, language, trMessage } = useLanguage();
+  const date = (value?: string) =>
+    value
+      ? new Date(value).toLocaleString(language === "en" ? "en-US" : "zh-CN", {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : tr("待安排");
   const router = useRouter(),
     params = useLocalSearchParams<{
       screen?: string;
@@ -503,14 +519,18 @@ export default function App() {
             <BrandLogo size={40} style={s.logo} />
             <Text style={s.wordmark}>DOGO</Text>
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => go("notifications")}
-          >
-            <Text style={s.topLink}>
-              消息 {store.notifications.filter((n) => !n.read_at).length || ""}
-            </Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <LanguageSwitch />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => go("notifications")}
+            >
+              <Text style={s.topLink}>
+                {tr("消息 ")}
+                {store.notifications.filter((n) => !n.read_at).length || ""}
+              </Text>
+            </Pressable>
+          </View>
         </View>
         <ScrollView
           refreshControl={
@@ -526,35 +546,44 @@ export default function App() {
           <Text style={s.eyebrow}>
             {isWalker ? "WALK WITH CARE" : "LITTLE PAWS, BIG ADVENTURES"}
           </Text>
-          <Text style={s.h1}>{title[page] ?? "DOGO"}</Text>
+          <Text style={s.h1}>{tr(title[page] ?? "DOGO")}</Text>
           {busy && <ActivityIndicator color={c.green} />}
           {!!error && (
             <Pressable onPress={() => setError("")}>
               <Text accessibilityRole="alert" style={s.error}>
-                {error}　×
+                {trMessage(error)}　×
               </Text>
             </Pressable>
           )}
           {!!notice && (
             <Pressable onPress={() => setNotice("")}>
-              <Text style={s.notice}>{notice}　×</Text>
+              <Text style={s.notice}>{tr(notice)}　×</Text>
             </Pressable>
           )}
           {!api ? (
             <>
               <View style={s.hero}>
-                <Text style={s.heroTitle}>陪它探索，{"\n"}也让你安心。</Text>
-                <Text style={s.body}>专属散步、友好小队，和更懂它的陪伴。</Text>
+                <Text style={s.heroTitle}>
+                  {tr("陪它探索，")}
+                  {"\n"}
+                  {tr("也让你安心。")}
+                </Text>
+                <Text style={s.body}>
+                  {tr("专属散步、友好小队，和更懂它的陪伴。")}
+                </Text>
                 <BrandLogo size={180} style={s.heroImage} />
               </View>
               <Card>
-                <Text style={s.h2}>欢迎来到 DOGO</Text>
+                <Text style={s.h2}>{tr("欢迎来到 DOGO")}</Text>
                 <Text style={s.body}>
-                  应用界面已准备好。连接开发环境后，即可注册、建立档案和预约散步。
+                  {tr(
+                    "应用界面已准备好。连接开发环境后，即可注册、建立档案和预约散步。",
+                  )}
                 </Text>
                 <Text style={s.caption}>
-                  请在 apps/mobile/.env 中配置 EXPO_PUBLIC_SUPABASE_URL 和
-                  EXPO_PUBLIC_SUPABASE_ANON_KEY，具体步骤见 README。
+                  {tr(
+                    "请在 apps/mobile/.env 中配置 EXPO_PUBLIC_SUPABASE_URL 和 EXPO_PUBLIC_SUPABASE_ANON_KEY，具体步骤见 README。",
+                  )}
                 </Text>
               </Card>
             </>
@@ -562,30 +591,34 @@ export default function App() {
             <>
               {isDemo && (
                 <Card tint>
-                  <Text style={s.h2}>本机演示模式</Text>
+                  <Text style={s.h2}>{tr("本机演示模式")}</Text>
                   <Text style={s.body}>
-                    选择一个身份开始体验，无需填写邮箱或密码。这里使用临时演示数据，暂不开放注册。
+                    {tr(
+                      "选择一个身份开始体验，无需填写邮箱或密码。这里使用临时演示数据，暂不开放注册。",
+                    )}
                   </Text>
                   <Button
                     disabled={demoLoginBusy}
                     onPress={() => void signInDemo("owner")}
                   >
-                    以主人身份体验
+                    {tr("以主人身份体验")}
                   </Button>
                   <Button
                     secondary
                     disabled={demoLoginBusy}
                     onPress={() => void signInDemo("walker")}
                   >
-                    以遛狗师身份体验
+                    {tr("以遛狗师身份体验")}
                   </Button>
-                  {demoLoginBusy && <Text style={s.caption}>正在登录…</Text>}
+                  {demoLoginBusy && (
+                    <Text style={s.caption}>{tr("正在登录…")}</Text>
+                  )}
                 </Card>
               )}
               {!isDemo && (
                 <Card>
                   <Text style={s.h2}>
-                    {register ? "开启你们的散步故事" : "欢迎回来"}
+                    {register ? tr("开启你们的散步故事") : tr("欢迎回来")}
                   </Text>
                   <Form
                     key={String(register)}
@@ -647,9 +680,9 @@ export default function App() {
                   {register && (
                     <>
                       <Text style={s.caption}>
-                        DOGO
-                        保存账号、狗狗档案、测评和服务记录用于提供服务。资料仅对本人、必要的服务人员及运营人员开放。可在“我的”申请导出或删除。版本
-                        2026-11。
+                        {tr(
+                          "DOGO 保存账号、狗狗档案、测评和服务记录用于提供服务。资料仅对本人、必要的服务人员及运营人员开放。可在“我的”申请导出或删除。版本 2026-11。",
+                        )}
                       </Text>
                       <Pressable
                         accessibilityRole="checkbox"
@@ -657,21 +690,24 @@ export default function App() {
                         onPress={() => setConsent(!consent)}
                       >
                         <Text style={s.body}>
-                          {consent ? "☑" : "☐"} 我已阅读并同意服务与隐私说明
+                          {consent ? "☑" : "☐"}
+                          {tr(" 我已阅读并同意服务与隐私说明")}
                         </Text>
                       </Pressable>
                     </>
                   )}
                   {!isDemo && (
                     <Button secondary onPress={() => setRegister(!register)}>
-                      {register ? "已有账号？去登录" : "第一次来？注册账号"}
+                      {register
+                        ? tr("已有账号？去登录")
+                        : tr("第一次来？注册账号")}
                     </Button>
                   )}
                 </Card>
               )}
               {!isDemo && (
                 <Card>
-                  <Text style={s.h2}>忘记密码</Text>
+                  <Text style={s.h2}>{tr("忘记密码")}</Text>
                   <Form
                     fields={[f("email", "注册邮箱", "email")]}
                     label="发送重置邮件"
@@ -694,9 +730,9 @@ export default function App() {
             </>
           ) : me?.active === false ? (
             <Card>
-              <Text style={s.body}>账号已停用，请联系运营。</Text>
+              <Text style={s.body}>{tr("账号已停用，请联系运营。")}</Text>
               <Button onPress={() => safe(async () => api.auth.signOut())}>
-                退出登录
+                {tr("退出登录")}
               </Button>
             </Card>
           ) : (
@@ -707,31 +743,33 @@ export default function App() {
                     <>
                       <Card tint>
                         <Text style={s.heroTitle}>
-                          让它安心出发，
-                          <Text style={{ color: c.green }}>平安回家。</Text>
+                          {tr("让它安心出发，")}
+                          <Text style={{ color: c.green }}>
+                            {tr("平安回家。")}
+                          </Text>
                         </Text>
                         <Text style={s.body}>
-                          今日待执行任务{" "}
+                          {tr("今日待执行任务")}{" "}
                           {
                             store.walk_tasks.filter(
                               (t) =>
                                 !["reported", "cancelled"].includes(t.status!),
                             ).length
                           }{" "}
-                          项
+                          {tr("项")}
                         </Text>
                         <Button onPress={() => go("tasks")}>
-                          打开任务台 →
+                          {tr("打开任务台 →")}
                         </Button>
                         <Button secondary onPress={() => go("publish")}>
-                          发布我的空闲时段
+                          {tr("发布我的空闲时段")}
                         </Button>
                         <Button secondary onPress={() => go("requests")}>
-                          看看主人遛狗需求
+                          {tr("看看主人遛狗需求")}
                         </Button>
                       </Card>
                       <Text style={s.caption}>
-                        只显示指派给你的任务和必要照顾信息。
+                        {tr("只显示指派给你的任务和必要照顾信息。")}
                       </Text>
                     </>
                   ) : (
@@ -743,15 +781,17 @@ export default function App() {
                         <View style={s.heroIntro}>
                           <View style={{ maxWidth: "65%", zIndex: 1 }}>
                             <Text style={s.heroTag}>
-                              每一只狗狗，都值得被懂得
+                              {tr("每一只狗狗，都值得被懂得")}
                             </Text>
                             <Text style={s.heroTitle}>
-                              一起出门，
-                              <Text style={{ color: c.green }}>遇见快乐。</Text>
+                              {tr("一起出门，")}
+                              <Text style={{ color: c.green }}>
+                                {tr("遇见快乐。")}
+                              </Text>
                             </Text>
                             <Text style={s.body}>
-                              专业陪伴，认真照顾。
-                              <Text>把散步的时光，放心交给我们。</Text>
+                              {tr("专业陪伴，认真照顾。")}
+                              <Text>{tr("把散步的时光，放心交给我们。")}</Text>
                             </Text>
                           </View>
                           <BrandLogo
@@ -768,7 +808,9 @@ export default function App() {
                           />
                         </View>
                         <View style={s.bookingPrompt}>
-                          <Text style={s.buttonText}>预约一次散步？</Text>
+                          <Text style={s.buttonText}>
+                            {tr("预约一次散步？")}
+                          </Text>
                         </View>
                         <View style={s.serviceGrid} testID="home-walk-options">
                           <Pressable
@@ -782,7 +824,9 @@ export default function App() {
                             </View>
                             <Text style={s.serviceTitle}>Solo Walk</Text>
                             <Text style={s.caption}>
-                              一对一专属陪伴{"\n"}按它的节奏慢慢走
+                              {tr("一对一专属陪伴")}
+                              {"\n"}
+                              {tr("按它的节奏慢慢走")}
                             </Text>
                           </Pressable>
                           <Pressable
@@ -796,15 +840,17 @@ export default function App() {
                             </View>
                             <Text style={s.serviceTitle}>Pack Walk</Text>
                             <Text style={s.caption}>
-                              和新朋友一起出发{"\n"}人工审核，安心同行
+                              {tr("和新朋友一起出发")}
+                              {"\n"}
+                              {tr("人工审核，安心同行")}
                             </Text>
                           </Pressable>
                         </View>
                       </View>
                       <View style={s.row}>
-                        <Text style={s.h2}>我的小伙伴</Text>
+                        <Text style={s.h2}>{tr("我的小伙伴")}</Text>
                         <Pressable onPress={() => go("dogs")}>
-                          <Text style={s.topLink}>管理档案 →</Text>
+                          <Text style={s.topLink}>{tr("管理档案 →")}</Text>
                         </Pressable>
                       </View>
                       {dogs.length ? (
@@ -824,34 +870,38 @@ export default function App() {
                                 <View style={{ flex: 1, marginLeft: 16 }}>
                                   <Text style={s.h2}>{d.data.nickname}</Text>
                                   <Text style={s.caption}>
-                                    {d.data.breed || "独一无二的小伙伴"} ·{" "}
-                                    {d.data.age} 岁 · {d.data.weight} kg
+                                    {d.data.breed || tr("独一无二的小伙伴")} ·{" "}
+                                    {d.data.age}
+                                    {tr(" 岁 · ")}
+                                    {d.data.weight} kg
                                   </Text>
                                 </View>
-                                <Text style={s.topLink}>了解它 ↗</Text>
+                                <Text style={s.topLink}>{tr("了解它 ↗")}</Text>
                               </View>
                             </Card>
                           </Pressable>
                         ))
                       ) : (
                         <Card>
-                          <Text style={s.h2}>先认识一下你的小伙伴</Text>
+                          <Text style={s.h2}>{tr("先认识一下你的小伙伴")}</Text>
                           <Text style={s.body}>
-                            添加狗狗档案，让每一次照顾更贴心。
+                            {tr("添加狗狗档案，让每一次照顾更贴心。")}
                           </Text>
                           <Button onPress={() => go("dogs")}>
-                            添加我的狗狗 ＋
+                            {tr("添加我的狗狗 ＋")}
                           </Button>
                         </Card>
                       )}
                       <Pressable onPress={() => begin()}>
                         <Card tint>
                           <Text style={s.eyebrow}>DOGO ti</Text>
-                          <Text style={s.h2}>狗狗性格分析</Text>
+                          <Text style={s.h2}>{tr("狗狗性格分析")}</Text>
                           <Text style={s.body}>
-                            从日常观察出发，填写问卷，随时保存和继续。
+                            {tr("从日常观察出发，填写问卷，随时保存和继续。")}
                           </Text>
-                          <Text style={s.topLink}>填写 DOGO ti 问卷 →</Text>
+                          <Text style={s.topLink}>
+                            {tr("填写 DOGO ti 问卷 →")}
+                          </Text>
                         </Card>
                       </Pressable>
                     </>
@@ -865,26 +915,33 @@ export default function App() {
                       <View style={s.row}>
                         <Text style={s.h2}>{d.data.nickname}</Text>
                         <Button secondary onPress={() => setEditDog(d)}>
-                          编辑
+                          {tr("编辑")}
                         </Button>
                       </View>
                       <Photo path={d.data.image_path} />
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`删除${d.data.nickname}的档案`}
+                        accessibilityLabel={tr("删除{0}的档案", [
+                          d.data.nickname,
+                        ])}
                         onPress={() => setDeleteDog(d)}
                         style={{ paddingVertical: 10 }}
                       >
-                        <Text style={{ color: c.danger }}>删除档案</Text>
+                        <Text style={{ color: c.danger }}>
+                          {tr("删除档案")}
+                        </Text>
                       </Pressable>
                       {deleteDog?.id === d.id && (
                         <View style={s.subcard}>
                           <Text style={s.h2}>
-                            删除 {d.data.nickname} 的档案？
+                            {tr("删除 ")}
+                            {d.data.nickname}
+                            {tr(" 的档案？")}
                           </Text>
                           <Text style={s.caption}>
-                            将从常用狗狗列表移除，历史订单和 DOGO ti
-                            记录会保留。未完成的订单需先处理。
+                            {tr(
+                              "将从常用狗狗列表移除，历史订单和 DOGO ti 记录会保留。未完成的订单需先处理。",
+                            )}
                           </Text>
                           <Button
                             disabled={deleting}
@@ -907,14 +964,14 @@ export default function App() {
                               })
                             }
                           >
-                            {deleting ? "正在删除…" : "确认删除档案"}
+                            {deleting ? tr("正在删除…") : tr("确认删除档案")}
                           </Button>
                           <Button
                             secondary
                             disabled={deleting}
                             onPress={() => setDeleteDog(null)}
                           >
-                            取消删除
+                            {tr("取消删除")}
                           </Button>
                         </View>
                       )}
@@ -922,21 +979,24 @@ export default function App() {
                         secondary
                         onPress={() => safe(() => uploadPhoto(d))}
                       >
-                        选择狗狗照片
+                        {tr("选择狗狗照片")}
                       </Button>
                       <Text style={s.body}>
-                        {d.data.age} 岁 · {d.data.weight} kg · 疫苗：
-                        {d.data.vaccine || "待确认"}
+                        {d.data.age}
+                        {tr(" 岁 · ")}
+                        {d.data.weight}
+                        {tr(" kg · 疫苗：")}
+                        {d.data.vaccine || tr("待确认")}
                       </Text>
                       <Text style={s.caption}>
-                        紧急联系人 {d.data.emergency_name} ·{" "}
-                        {d.data.emergency_phone}
+                        {tr("紧急联系人 ")}
+                        {d.data.emergency_name} · {d.data.emergency_phone}
                       </Text>
                     </Card>
                   ))}
                   <Card>
                     <Text style={s.h2}>
-                      {editDog ? "编辑狗狗" : "添加新伙伴"}
+                      {editDog ? tr("编辑狗狗") : tr("添加新伙伴")}
                     </Text>
                     <Form
                       key={editDog?.id ?? "new"}
@@ -973,7 +1033,7 @@ export default function App() {
                     />
                     {editDog && (
                       <Button secondary onPress={() => setEditDog(null)}>
-                        取消编辑
+                        {tr("取消编辑")}
                       </Button>
                     )}
                   </Card>
@@ -982,8 +1042,8 @@ export default function App() {
               {["assessment", "results"].includes(page) &&
                 (!dogs.length ? (
                   <Card>
-                    <Text style={s.body}>请先添加狗狗档案。</Text>
-                    <Button onPress={() => go("dogs")}>建立档案</Button>
+                    <Text style={s.body}>{tr("请先添加狗狗档案。")}</Text>
+                    <Button onPress={() => go("dogs")}>{tr("建立档案")}</Button>
                   </Card>
                 ) : (
                   <>
@@ -1022,16 +1082,20 @@ export default function App() {
                 ))}
               {(isBooking || page === "request") && !isWalker && (
                 <Card tint>
-                  <Text style={s.h2}>时间由你来定</Text>
+                  <Text style={s.h2}>{tr("时间由你来定")}</Text>
                   <Text style={s.body}>
-                    没有合适的活动时段？发布你需要的散步时间，等待遛狗师接单。
+                    {tr(
+                      "没有合适的活动时段？发布你需要的散步时间，等待遛狗师接单。",
+                    )}
                   </Text>
                   {page !== "request" && (
-                    <Button onPress={() => go("request")}>发布遛狗需求</Button>
+                    <Button onPress={() => go("request")}>
+                      {tr("发布遛狗需求")}
+                    </Button>
                   )}
                   {page === "request" && (
                     <Button secondary onPress={() => go("book")}>
-                      查看可预约时段
+                      {tr("查看可预约时段")}
                     </Button>
                   )}
                 </Card>
@@ -1042,30 +1106,36 @@ export default function App() {
                     secondary={bookingKind !== "solo"}
                     onPress={() => setBookingKind("solo")}
                   >
-                    单独散步 · Solo
+                    {tr("单独散步 · Solo")}
                   </Button>
                   <Button
                     secondary={bookingKind !== "pack"}
                     onPress={() => setBookingKind("pack")}
                   >
-                    结伴散步 · Pack
+                    {tr("结伴散步 · Pack")}
                   </Button>
                 </View>
               )}
               {isBooking && !isWalker && bookingKind === "solo" && (
                 <>
                   <Card tint>
-                    <Text style={s.h2}>专属它的散步时光</Text>
+                    <Text style={s.h2}>{tr("专属它的散步时光")}</Text>
                     <Text style={s.body}>
-                      {durations.join(" / ")} 分钟 · 专属陪伴 · 双方交接
+                      {durations.join(" / ")}
+                      {tr(" 分钟 · 专属陪伴 · 双方交接")}
                     </Text>
                     <Text style={s.caption}>
-                      服务区域：{store.settings[0]?.data.area ?? "试点服务区"}
-                      。遛狗师发布的时段预约成功后直接确认，其他时段由运营确认；暂不提供在线支付。
+                      {tr("服务区域：")}
+                      {store.settings[0]?.data.area ?? tr("试点服务区")}
+                      {tr(
+                        "。遛狗师发布的时段预约成功后直接确认，其他时段由运营确认；暂不提供在线支付。",
+                      )}
                     </Text>
                   </Card>
                   {!dogs.length ? (
-                    <Button onPress={() => go("dogs")}>先添加狗狗档案</Button>
+                    <Button onPress={() => go("dogs")}>
+                      {tr("先添加狗狗档案")}
+                    </Button>
                   ) : (
                     <Card>
                       <Form
@@ -1088,7 +1158,7 @@ export default function App() {
                               )
                               .map((x) => ({
                                 value: x.id,
-                                label: `${date(x.start_at)} — ${date(x.end_at)}${x.data.publisher_id ? " · 遛狗师发布" : " · 运营安排"}`,
+                                label: `${date(x.start_at)} — ${date(x.end_at)}${x.data.publisher_id ? tr(" · 遛狗师发布") : tr(" · 运营安排")}`,
                               })),
                           },
                           {
@@ -1107,7 +1177,7 @@ export default function App() {
                                 .filter((n) => n <= available)
                                 .map((n) => ({
                                   value: String(n),
-                                  label: `${n} 分钟`,
+                                  label: tr("{0} 分钟", [n]),
                                 }));
                             },
                           },
@@ -1136,7 +1206,9 @@ export default function App() {
                         }}
                       />
                       <Text style={s.caption}>
-                        运营安排的时段请填写交接地点；遛狗师发布的时段使用活动集合地点。名额在提交时实时核验。
+                        {tr(
+                          "运营安排的时段请填写交接地点；遛狗师发布的时段使用活动集合地点。名额在提交时实时核验。",
+                        )}
                       </Text>
                     </Card>
                   )}
@@ -1145,12 +1217,14 @@ export default function App() {
               {isBooking && !isWalker && bookingKind === "pack" && (
                 <>
                   <Text style={s.body}>
-                    先认识，再同行。每只狗狗通过人工安全审核后，才能报名对应小队的活动。
+                    {tr(
+                      "先认识，再同行。每只狗狗通过人工安全审核后，才能报名对应小队的活动。",
+                    )}
                   </Text>
                   {!store.packs.length && (
                     <Card>
                       <Text style={s.body}>
-                        小队筹备中，开放后会出现在这里。
+                        {tr("小队筹备中，开放后会出现在这里。")}
                       </Text>
                     </Card>
                   )}
@@ -1164,13 +1238,18 @@ export default function App() {
                       <Card key={p.id}>
                         <View style={s.row}>
                           <Text style={s.h2}>{p.name}</Text>
-                          <Text style={s.pill}>最多 {p.capacity} 只</Text>
+                          <Text style={s.pill}>
+                            {tr("最多 ")}
+                            {p.capacity}
+                            {tr(" 只")}
+                          </Text>
                         </View>
                         <Text style={s.body}>
                           {p.location} · {p.data.description}
                         </Text>
                         <Text style={s.caption}>
-                          参与条件：{p.data.requirements}
+                          {tr("参与条件：")}
+                          {p.data.requirements}
                         </Text>
                         <Form
                           fields={[
@@ -1190,18 +1269,20 @@ export default function App() {
                           .map((a) => (
                             <View style={s.subcard} key={a.id}>
                               <Text style={s.h2}>
-                                {dogName(store, a.dog_id)} 的申请
+                                {dogName(store, a.dog_id)}
+                                {tr(" 的申请")}
                               </Text>
                               <Pill status={a.status} />
                               <Text style={s.body}>
                                 {a.data.review_reason ??
-                                  "运营会认真了解它的情况，请耐心等待。"}
+                                  tr("运营会认真了解它的情况，请耐心等待。")}
                               </Text>
                               {store.intro_meetings
                                 .filter((m) => m.application_id === a.id)
                                 .map((m) => (
                                   <Text style={s.body} key={m.id}>
-                                    首次见面：{date(m.data.scheduled_at)}{" "}
+                                    {tr("首次见面：")}
+                                    {date(m.data.scheduled_at)}{" "}
                                     {m.data.outcome ?? ""}
                                   </Text>
                                 ))}
@@ -1220,7 +1301,7 @@ export default function App() {
                           )
                           .map((e) => (
                             <View style={s.subcard} key={e.id}>
-                              <Text style={s.h2}>下一次一起出发</Text>
+                              <Text style={s.h2}>{tr("下一次一起出发")}</Text>
                               <Text style={s.body}>
                                 {date(
                                   store.service_slots.find(
@@ -1264,7 +1345,9 @@ export default function App() {
               {page === "request" &&
                 !isWalker &&
                 (!dogs.length ? (
-                  <Button onPress={() => go("dogs")}>先添加狗狗档案</Button>
+                  <Button onPress={() => go("dogs")}>
+                    {tr("先添加狗狗档案")}
+                  </Button>
                 ) : (
                   <Card>
                     <Form
@@ -1278,7 +1361,7 @@ export default function App() {
                           value: "30",
                           options: durations.map((n) => ({
                             value: String(n),
-                            label: `${n} 分钟`,
+                            label: tr("{0} 分钟", [n]),
                           })),
                         },
                         f("area", "公开服务区域（如小区或公园）"),
@@ -1302,25 +1385,29 @@ export default function App() {
                       }}
                     />
                     <Text style={s.caption}>
-                      需求标题、区域、备注和狗狗昵称、品种、体重会展示给遛狗师，请不要在公开备注填写电话或门牌号。结束时间由开始时间与时长计算；未接单前可随时撤回。
+                      {tr(
+                        "需求标题、区域、备注和狗狗昵称、品种、体重会展示给遛狗师，请不要在公开备注填写电话或门牌号。结束时间由开始时间与时长计算；未接单前可随时撤回。",
+                      )}
                     </Text>
                   </Card>
                 ))}
               {page === "requests" && isWalker && (
                 <>
                   <Card tint>
-                    <Text style={s.h2}>找到适合你的下一段散步</Text>
+                    <Text style={s.h2}>{tr("找到适合你的下一段散步")}</Text>
                     <Text style={s.body}>
-                      这里展示主人发布、尚未被接单的需求。确认时间和区域合适后接单，详细交接资料会加入你的任务。
+                      {tr(
+                        "这里展示主人发布、尚未被接单的需求。确认时间和区域合适后接单，详细交接资料会加入你的任务。",
+                      )}
                     </Text>
                     <Button secondary onPress={() => safe(refresh)}>
-                      刷新需求
+                      {tr("刷新需求")}
                     </Button>
                   </Card>
                   {!store.walk_requests.length && (
                     <Card>
                       <Text style={s.body}>
-                        暂时没有待接单需求，稍后再来看看。
+                        {tr("暂时没有待接单需求，稍后再来看看。")}
                       </Text>
                     </Card>
                   )}
@@ -1329,11 +1416,12 @@ export default function App() {
                       <Text style={s.h2}>{r.data.title}</Text>
                       <Text style={s.body}>
                         {date(r.start_at)} — {date(r.end_at)} ·{" "}
-                        {r.data.duration} 分钟
+                        {r.data.duration}
+                        {tr(" 分钟")}
                       </Text>
                       <Text style={s.body}>
                         {r.data.area} · {r.data.nickname} ·{" "}
-                        {r.data.breed || "品种未填写"} · {r.data.weight} kg
+                        {r.data.breed || tr("品种未填写")} · {r.data.weight} kg
                       </Text>
                       {!!r.data.public_notes && (
                         <Text style={s.body}>{r.data.public_notes}</Text>
@@ -1346,10 +1434,10 @@ export default function App() {
                           })
                         }
                       >
-                        确认接下这个需求
+                        {tr("确认接下这个需求")}
                       </Button>
                       <Text style={s.caption}>
-                        接单即确认服务，请确保你有足够的往返和交接时间。
+                        {tr("接单即确认服务，请确保你有足够的往返和交接时间。")}
                       </Text>
                     </Card>
                   ))}
@@ -1358,18 +1446,22 @@ export default function App() {
               {page === "activities" && !isWalker && (
                 <>
                   <Card tint>
-                    <Text style={s.h2}>挑一个时间，一起出发</Text>
+                    <Text style={s.h2}>{tr("挑一个时间，一起出发")}</Text>
                     <Text style={s.body}>
-                      这里是遛狗师发布的散步时段和小队活动。选好活动后，为你的狗狗预约。
+                      {tr(
+                        "这里是遛狗师发布的散步时段和小队活动。选好活动后，为你的狗狗预约。",
+                      )}
                     </Text>
                     <Button secondary onPress={() => safe(refresh)}>
-                      刷新活动
+                      {tr("刷新活动")}
                     </Button>
                   </Card>
                   {!store.walk_activities.length && (
                     <Card>
                       <Text style={s.body}>
-                        暂时没有可预约活动，稍后再来看看，也可以到“预约”提交散步申请。
+                        {tr(
+                          "暂时没有可预约活动，稍后再来看看，也可以到“预约”提交散步申请。",
+                        )}
                       </Text>
                     </Card>
                   )}
@@ -1385,16 +1477,19 @@ export default function App() {
                         {date(a.start_at)} — {date(a.end_at)}
                       </Text>
                       <Text style={s.body}>
-                        遛狗师：{a.data.walker_name} · {a.data.location}
+                        {tr("遛狗师：")}
+                        {a.data.walker_name} · {a.data.location}
                       </Text>
                       {!!a.data.description && (
                         <Text style={s.body}>{a.data.description}</Text>
                       )}
                       <Text style={s.caption}>
-                        剩余 {a.remaining} / {a.capacity} 个名额
+                        {tr("剩余 ")}
+                        {a.remaining} / {a.capacity}
+                        {tr(" 个名额")}
                         {a.kind === "pack"
-                          ? " · 需先通过对应小队的安全审核"
-                          : " · 预约成功即确认"}
+                          ? tr(" · 需先通过对应小队的安全审核")
+                          : tr(" · 预约成功即确认")}
                       </Text>
                       <Button
                         disabled={!a.remaining}
@@ -1410,7 +1505,7 @@ export default function App() {
                           })
                         }
                       >
-                        {a.remaining ? "预约这个活动" : "名额已满"}
+                        {a.remaining ? tr("预约这个活动") : tr("名额已满")}
                       </Button>
                     </Card>
                   ))}
@@ -1419,9 +1514,11 @@ export default function App() {
               {page === "publish" && isWalker && (
                 <>
                   <Card tint>
-                    <Text style={s.h2}>把空闲时间变成一段好时光</Text>
+                    <Text style={s.h2}>{tr("把空闲时间变成一段好时光")}</Text>
                     <Text style={s.body}>
-                      发布你可以服务的时间和地点，主人可在“遛狗活动”中预约。请预留足够的交接与往返时间。
+                      {tr(
+                        "发布你可以服务的时间和地点，主人可在“遛狗活动”中预约。请预留足够的交接与往返时间。",
+                      )}
                     </Text>
                   </Card>
                   <View style={s.wrap}>
@@ -1429,13 +1526,13 @@ export default function App() {
                       secondary={publishKind !== "solo"}
                       onPress={() => setPublishKind("solo")}
                     >
-                      发布单独时段
+                      {tr("发布单独时段")}
                     </Button>
                     <Button
                       secondary={publishKind !== "pack"}
                       onPress={() => setPublishKind("pack")}
                     >
-                      发布 Pack 活动
+                      {tr("发布 Pack 活动")}
                     </Button>
                   </View>
                   {publishKind === "pack" &&
@@ -1444,8 +1541,9 @@ export default function App() {
                   ) ? (
                     <Card>
                       <Text style={s.body}>
-                        你还没有负责的小队，请联系运营安排后再发布 Pack
-                        活动。你现在可以发布单独散步时段。
+                        {tr(
+                          "你还没有负责的小队，请联系运营安排后再发布 Pack 活动。你现在可以发布单独散步时段。",
+                        )}
                       </Text>
                     </Card>
                   ) : (
@@ -1470,7 +1568,11 @@ export default function App() {
                                     )
                                     .map((p) => ({
                                       value: p.id,
-                                      label: `${p.name} · ${p.location} · 最多 ${p.capacity} 只`,
+                                      label: tr("{0} · {1} · 最多 {2} 只", [
+                                        p.name,
+                                        p.location,
+                                        p.capacity,
+                                      ]),
                                     })),
                                 },
                                 {
@@ -1504,14 +1606,15 @@ export default function App() {
                         }}
                       />
                       <Text style={s.caption}>
-                        时间按你当前设备的当地时间填写。Pack
-                        活动沿用小队集合地点，成员仍须通过安全审核。
+                        {tr(
+                          "时间按你当前设备的当地时间填写。Pack 活动沿用小队集合地点，成员仍须通过安全审核。",
+                        )}
                       </Text>
                     </Card>
                   )}
-                  <Text style={s.h2}>我发布的时段</Text>
+                  <Text style={s.h2}>{tr("我发布的时段")}</Text>
                   {!store.walk_publications.length && (
-                    <Text style={s.body}>还没有发布时段。</Text>
+                    <Text style={s.body}>{tr("还没有发布时段。")}</Text>
                   )}
                   {[...store.walk_publications].reverse().map((p) => {
                     const slot = store.service_slots.find(
@@ -1541,11 +1644,11 @@ export default function App() {
                               })
                             }
                           >
-                            撤回时段
+                            {tr("撤回时段")}
                           </Button>
                         )}
                         <Text style={s.caption}>
-                          已有有效预约的时段无法撤回，请联系运营处理。
+                          {tr("已有有效预约的时段无法撤回，请联系运营处理。")}
                         </Text>
                       </Card>
                     );
@@ -1558,9 +1661,11 @@ export default function App() {
                     .length === 0 && (
                     <Card>
                       <Text style={s.body}>
-                        还没有预约，选一个好天气出发吧。
+                        {tr("还没有预约，选一个好天气出发吧。")}
                       </Text>
-                      <Button onPress={() => go("solo")}>预约散步</Button>
+                      <Button onPress={() => go("solo")}>
+                        {tr("预约散步")}
+                      </Button>
                     </Card>
                   )}
                   {[...store.solo_bookings, ...store.pack_event_bookings].map(
@@ -1580,10 +1685,15 @@ export default function App() {
                             }
                           />
                         </View>
-                        <Text style={s.caption}>订单 {b.id.slice(0, 8)}</Text>
+                        <Text style={s.caption}>
+                          {tr("订单 ")}
+                          {b.id.slice(0, 8)}
+                        </Text>
                         {b.data?.source === "owner_request" && (
                           <Text style={s.body}>
-                            我的需求：{b.data.title} · {b.data.duration} 分钟
+                            {tr("我的需求：")}
+                            {b.data.title} · {b.data.duration}
+                            {tr(" 分钟")}
                           </Text>
                         )}
                         <Text style={s.body}>
@@ -1605,8 +1715,10 @@ export default function App() {
                               <Text style={s.caption}>
                                 {b.data?.source === "owner_request" &&
                                 b.status === "requested"
-                                  ? "尚未接单，可随时撤回需求。"
-                                  : `开始前 ${store.settings[0]?.data.cancel_hours ?? 2} 小时可自助取消。`}
+                                  ? tr("尚未接单，可随时撤回需求。")
+                                  : tr("开始前 {0} 小时可自助取消。", [
+                                      store.settings[0]?.data.cancel_hours ?? 2,
+                                    ])}
                               </Text>
                               <Form
                                 fields={[f("reason", "取消原因")]}
@@ -1632,7 +1744,7 @@ export default function App() {
                               <Pill status={t.status} />
                               {Object.entries(t.data).map(([k, v]) => (
                                 <Text key={k} style={s.caption}>
-                                  {labels[k.replace("_at", "")] ?? k} ·{" "}
+                                  {tr(labels[k.replace("_at", "")] ?? k)} ·{" "}
                                   {date(String(v))}
                                 </Text>
                               ))}
@@ -1659,15 +1771,17 @@ export default function App() {
                                   }
                                 >
                                   {["accepted", "picked_up"].includes(t.status!)
-                                    ? "我已确认接狗交接"
-                                    : "我已接回狗狗，确认归还"}
+                                    ? tr("我已确认接狗交接")
+                                    : tr("我已接回狗狗，确认归还")}
                                 </Button>
                               )}
                               {store.walk_reports
                                 .filter((r) => r.task_id === t.id)
                                 .map((r) => (
                                   <View key={r.id}>
-                                    <Text style={s.h2}>这次散步报告</Text>
+                                    <Text style={s.h2}>
+                                      {tr("这次散步报告")}
+                                    </Text>
                                     <Text style={s.body}>{r.data.summary}</Text>
                                     <Text style={s.body}>
                                       {r.data.observations}
@@ -1684,8 +1798,8 @@ export default function App() {
                                       )
                                       .map((c) => (
                                         <Text key={c.id} style={s.body}>
-                                          更正：{c.data.summary}（
-                                          {c.data.reason}）
+                                          {tr("更正：")}
+                                          {c.data.summary}（{c.data.reason}）
                                         </Text>
                                       ))}
                                   </View>
@@ -1701,14 +1815,15 @@ export default function App() {
                 <>
                   {store.walk_tasks.length === 0 && (
                     <Card>
-                      <Text style={s.body}>暂时没有分配的任务。</Text>
+                      <Text style={s.body}>{tr("暂时没有分配的任务。")}</Text>
                     </Card>
                   )}
                   {store.walk_tasks.map((t) => (
                     <Card key={t.id}>
                       <View style={s.row}>
                         <Text style={s.h2}>
-                          {t.solo_id ? "Solo" : "Pack"} 服务任务
+                          {t.solo_id ? "Solo" : "Pack"}
+                          {tr(" 服务任务")}
                         </Text>
                         <Pill status={t.status} />
                       </View>
@@ -1726,7 +1841,7 @@ export default function App() {
                           })
                         }
                       >
-                        查看照顾与紧急联系信息
+                        {tr("查看照顾与紧急联系信息")}
                       </Button>
                       {briefs[t.id] && (
                         <View style={s.subcard}>
@@ -1738,19 +1853,25 @@ export default function App() {
                             {date(briefs[t.id].start_at)} —{" "}
                             {date(briefs[t.id].end_at)}
                             {briefs[t.id].duration
-                              ? ` · ${briefs[t.id].duration} 分钟`
+                              ? tr(" · {0} 分钟", [briefs[t.id].duration])
                               : ""}
                           </Text>
                           {!!briefs[t.id].notes && (
                             <Text style={s.body}>
-                              备注：{briefs[t.id].notes}
+                              {tr("备注：")}
+                              {briefs[t.id].notes}
                             </Text>
                           )}
                           <Text style={s.body}>
-                            交接点：{briefs[t.id].handoff}
+                            {tr("交接点：")}
+                            {briefs[t.id].handoff}
                             <Text>
-                              {"\n"}健康：{briefs[t.id].health}
-                              {"\n"}装备：{briefs[t.id].gear}
+                              {"\n"}
+                              {tr("健康：")}
+                              {briefs[t.id].health}
+                              {"\n"}
+                              {tr("装备：")}
+                              {briefs[t.id].gear}
                             </Text>
                           </Text>
                           <Button
@@ -1761,7 +1882,8 @@ export default function App() {
                               )
                             }
                           >
-                            联系 {briefs[t.id].emergency_name}
+                            {tr("联系 ")}
+                            {briefs[t.id].emergency_name}
                           </Button>
                           <Text style={s.caption}>
                             {store.settings[0]?.data.emergency}
@@ -1823,7 +1945,7 @@ export default function App() {
                       )}
                       {!["reported", "cancelled"].includes(t.status!) && (
                         <View style={s.subcard}>
-                          <Text style={s.h2}>异常事件</Text>
+                          <Text style={s.h2}>{tr("异常事件")}</Text>
                           <Form
                             fields={[
                               f("description", "事件经过与已采取措施", "long"),
@@ -1860,7 +1982,7 @@ export default function App() {
                 <>
                   {!store.notifications.length && (
                     <Card>
-                      <Text style={s.body}>暂时没有新消息。</Text>
+                      <Text style={s.body}>{tr("暂时没有新消息。")}</Text>
                     </Card>
                   )}
                   {store.notifications
@@ -1868,7 +1990,7 @@ export default function App() {
                     .reverse()
                     .map((n) => (
                       <Card key={n.id}>
-                        <Text style={s.h2}>{n.data.title}</Text>
+                        <Text style={s.h2}>{trMessage(n.data.title)}</Text>
                         <Text style={s.caption}>{date(n.created_at)}</Text>
                         {!n.read_at && (
                           <Button
@@ -1877,7 +1999,7 @@ export default function App() {
                               safe(() => run("notification.read", { id: n.id }))
                             }
                           >
-                            标记已读
+                            {tr("标记已读")}
                           </Button>
                         )}
                       </Card>
@@ -1890,13 +2012,13 @@ export default function App() {
                     <View style={s.row}>
                       <View>
                         <Text style={s.h2}>
-                          {me?.display_name ?? "DOGO 用户"}
+                          {me?.display_name ?? tr("DOGO 用户")}
                         </Text>
                         <Pill status={me?.role} />
                       </View>
                     </View>
                     <Button secondary onPress={() => go("notifications")}>
-                      消息中心
+                      {tr("消息中心")}
                     </Button>
                   </Card>
                   {!isWalker && api && (
@@ -1912,7 +2034,7 @@ export default function App() {
                     />
                   )}
                   <View style={s.settingsSection}>
-                    <Text style={s.caption}>账号设置</Text>
+                    <Text style={s.caption}>{tr("账号设置")}</Text>
                     {!isDemo && (
                       <Pressable
                         accessibilityRole="button"
@@ -1920,9 +2042,9 @@ export default function App() {
                         onPress={() => setPasswordOpen(!passwordOpen)}
                         style={s.settingsRow}
                       >
-                        <Text style={s.caption}>修改密码</Text>
+                        <Text style={s.caption}>{tr("修改密码")}</Text>
                         <Text style={s.caption}>
-                          {passwordOpen ? "收起" : "›"}
+                          {passwordOpen ? tr("收起") : "›"}
                         </Text>
                       </Pressable>
                     )}
@@ -1932,15 +2054,15 @@ export default function App() {
                       onPress={() => setPrivacyOpen(!privacyOpen)}
                       style={s.settingsRow}
                     >
-                      <Text style={s.caption}>隐私与资料管理</Text>
+                      <Text style={s.caption}>{tr("隐私与资料管理")}</Text>
                       <Text style={s.caption}>
-                        {privacyOpen ? "收起" : "›"}
+                        {privacyOpen ? tr("收起") : "›"}
                       </Text>
                     </Pressable>
                   </View>
                   {!isDemo && passwordOpen && (
                     <Card>
-                      <Text style={s.h2}>重置密码</Text>
+                      <Text style={s.h2}>{tr("重置密码")}</Text>
                       <Form
                         fields={[
                           f("password", "新密码（至少 8 位）", "password"),
@@ -1960,9 +2082,11 @@ export default function App() {
                   )}
                   {privacyOpen && (
                     <Card>
-                      <Text style={s.h2}>隐私与资料管理</Text>
+                      <Text style={s.h2}>{tr("隐私与资料管理")}</Text>
                       <Text style={s.body}>
-                        可申请导出或删除资料。运营将核实身份和服务留档要求后办理。
+                        {tr(
+                          "可申请导出或删除资料。运营将核实身份和服务留档要求后办理。",
+                        )}
                       </Text>
                       <Form
                         fields={[
@@ -1995,13 +2119,13 @@ export default function App() {
                       })
                     }
                   >
-                    退出登录
+                    {tr("退出登录")}
                   </Button>
                 </>
               )}
             </>
           )}
-          <Text style={s.footer}>DOGO · 用心陪伴每一步</Text>
+          <Text style={s.footer}>{tr("DOGO · 用心陪伴每一步")}</Text>
         </ScrollView>
         <View style={s.nav}>
           {tabs.map(([id, label, icon]) => (
@@ -2032,7 +2156,7 @@ export default function App() {
                   activeTab === id && { color: c.green, fontWeight: "700" },
                 ]}
               >
-                {label}
+                {tr(label)}
               </Text>
             </Pressable>
           ))}

@@ -1,3 +1,4 @@
+import { useLanguage } from "./i18n/LanguageProvider";
 import { useEffect, useState } from "react";
 import {
   View,
@@ -36,6 +37,7 @@ export function OwnerProfile({
   onQuestionnaire: () => void;
   onResults: () => void;
 }) {
+  const { tr } = useLanguage();
   const [results, setResults] = useState<ProfileRecord[]>([]),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(false);
@@ -71,22 +73,25 @@ export function OwnerProfile({
   const meta = profileMeta(latest?.result.style.code ?? null);
   const button = (title: string, fn: () => void) => (
     <Pressable accessibilityRole="button" onPress={fn} style={s.button}>
-      <Text style={s.buttonText}>{title}</Text>
+      <Text style={s.buttonText}>{tr(title)}</Text>
     </Pressable>
   );
   return (
     <>
       <View style={s.card}>
         <View style={s.row}>
-          <Text style={s.title}>我的狗狗档案</Text>
-          <Text style={s.count}>{dogs.length} 位小伙伴</Text>
+          <Text style={s.title}>{tr("我的狗狗档案")}</Text>
+          <Text style={s.count}>
+            {dogs.length}
+            {tr(" 位小伙伴")}
+          </Text>
         </View>
         {dogs.length ? (
           dogs.map((d) => (
             <Pressable
               key={d.id}
               accessibilityRole="button"
-              accessibilityLabel={`查看${d.data.nickname}的档案`}
+              accessibilityLabel={tr("查看{0}的档案", [d.data.nickname])}
               onPress={() => {
                 onSelect(d.id);
                 onDogs();
@@ -99,20 +104,21 @@ export function OwnerProfile({
               <View style={{ flex: 1 }}>
                 <Text style={s.name}>{d.data.nickname}</Text>
                 <Text style={s.caption}>
-                  {d.data.breed || "独一无二的小伙伴"} · {d.data.age} 岁
+                  {d.data.breed || tr("独一无二的小伙伴")} · {d.data.age}
+                  {tr(" 岁")}
                 </Text>
               </View>
-              <Text style={s.caption}>查看 ›</Text>
+              <Text style={s.caption}>{tr("查看 ›")}</Text>
             </Pressable>
           ))
         ) : (
-          <Text style={s.body}>添加狗狗档案，开始记录你们的日常。</Text>
+          <Text style={s.body}>{tr("添加狗狗档案，开始记录你们的日常。")}</Text>
         )}
         {button("管理狗狗档案", onDogs)}
       </View>
       <View style={[s.card, { backgroundColor: "#FFF1D9" }]}>
-        <Text style={s.title}>我的狗狗</Text>
-        <Text style={s.caption}>DOGO ti · 认识它的小小世界</Text>
+        <Text style={s.title}>{tr("我的狗狗")}</Text>
+        <Text style={s.caption}>{tr("DOGO ti · 认识它的小小世界")}</Text>
         {dog ? (
           <>
             <View style={s.choices}>
@@ -120,7 +126,7 @@ export function OwnerProfile({
                 <Pressable
                   accessibilityRole="button"
                   key={d.id}
-                  accessibilityLabel={`查看${d.data.nickname}的形象`}
+                  accessibilityLabel={tr("查看{0}的形象", [d.data.nickname])}
                   onPress={() => onSelect(d.id)}
                   style={[
                     s.choice,
@@ -144,17 +150,19 @@ export function OwnerProfile({
             <Text style={s.name}>
               {dog.data.nickname}
               {meta
-                ? ` · ${meta.titleZh}`
+                ? ` · ${tr(meta.titleZh)}`
                 : latest
-                  ? ` · ${latest.result.style.label}`
-                  : "的专属形象"}
+                  ? ` · ${tr(latest.result.style.label)}`
+                  : tr("的专属形象")}
             </Text>
             <Text style={s.body}>
               {error
-                ? "暂时无法读取形象，稍后可以在结果页重试。"
+                ? tr("暂时无法读取形象，稍后可以在结果页重试。")
                 : latest
-                  ? profileDescription(latest.result)
-                  : "完成 DOGO ti 问卷，了解它的日常倾向，生成属于它的形象档案。"}
+                  ? tr(profileDescription(latest.result))
+                  : tr(
+                      "完成 DOGO ti 问卷，了解它的日常倾向，生成属于它的形象档案。",
+                    )}
             </Text>
             {button(
               latest ? "查看 DOGO ti 结果与历史" : "填写 DOGO ti 问卷",

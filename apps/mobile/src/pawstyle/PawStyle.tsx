@@ -1,3 +1,4 @@
+import { useLanguage } from "../i18n/LanguageProvider";
 import { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -37,6 +38,7 @@ export function PawStyle({
   dogId: string;
   onResults: () => void;
 }) {
+  const { tr, trMessage } = useLanguage();
   const key = storageKey(userId, dogId);
   const [draft, setDraft] = useState<Draft>(blankDraft);
   const current = useRef(draft);
@@ -227,7 +229,10 @@ export function PawStyle({
   }
   if (!ready)
     return (
-      <ActivityIndicator accessibilityLabel="正在恢复问卷" color={c.green} />
+      <ActivityIndicator
+        accessibilityLabel={tr("正在恢复问卷")}
+        color={c.green}
+      />
     );
   const q = questions[draft.position];
   const answer = draft.answers[q.id];
@@ -240,17 +245,20 @@ export function PawStyle({
       onPress={fn}
       style={[styles.button, disabled && { opacity: 0.4 }]}
     >
-      <Text style={styles.buttonText}>{label}</Text>
+      <Text style={styles.buttonText}>{tr(label)}</Text>
     </Pressable>
   );
   return (
     <View style={styles.container}>
       <Text style={styles.caption}>
-        版本 {questionnaire.version} · 根据日常观察填写
+        {tr("版本 ")}
+        {questionnaire.version}
+        {tr(" · 根据日常观察填写")}
       </Text>
       <Text style={styles.body}>
-        已作答 {total} / {questions.length} 题 ·{" "}
-        {Math.round((total / questions.length) * 100)}%
+        {tr("已作答 ")}
+        {total} / {questions.length}
+        {tr(" 题 ·")} {Math.round((total / questions.length) * 100)}%
       </Text>
       <View
         accessibilityRole="progressbar"
@@ -258,7 +266,7 @@ export function PawStyle({
         aria-valuemin={0}
         aria-valuemax={questions.length}
         aria-valuenow={total}
-        accessibilityLabel="问卷填写进度"
+        accessibilityLabel={tr("问卷填写进度")}
         style={styles.track}
       >
         <View
@@ -289,7 +297,7 @@ export function PawStyle({
               ]}
             >
               <Text style={styles.caption}>
-                {section.id} · {section.title}
+                {section.id} · {tr(section.title)}
               </Text>
               <Text style={styles.caption}>
                 {members.filter((q) => answered(q, draft.answers[q.id])).length}{" "}
@@ -301,18 +309,18 @@ export function PawStyle({
       </View>
       <View style={styles.card}>
         <Text style={styles.caption}>
-          {section.id} · {section.title} · 第 {draft.position + 1} /{" "}
-          {questions.length} 题
+          {section.id} · {tr(section.title)}
+          {tr(" · 第 {0} / {1} 题", [draft.position + 1, questions.length])}
         </Text>
         <Text style={styles.question}>
-          {q.id}　{q.question}
+          {q.id}　{tr(q.question)}
         </Text>
         <Text style={styles.caption}>
           {q.type === "multiple"
-            ? "多选，可选择多个选项"
-            : "单选，请选择一个选项"}
+            ? tr("多选，可选择多个选项")
+            : tr("单选，请选择一个选项")}
         </Text>
-        {q.note && <Text style={styles.caption}>{q.note}</Text>}
+        {q.note && <Text style={styles.caption}>{tr(q.note)}</Text>}
         {q.options.map((option) => {
           const checked = Array.isArray(answer?.value)
             ? answer.value.includes(option.value)
@@ -323,8 +331,8 @@ export function PawStyle({
               accessibilityRole={q.type === "multiple" ? "checkbox" : "radio"}
               accessibilityLabel={
                 q.section === "D"
-                  ? `${option.value} · ${option.label}`
-                  : option.label
+                  ? `${option.value} · ${tr(option.label)}`
+                  : tr(option.label)
               }
               aria-checked={checked}
               accessibilityState={{ checked }}
@@ -342,7 +350,7 @@ export function PawStyle({
               <Text style={styles.body}>
                 {checked ? "●" : "○"}　
                 {q.section === "D" ? `${option.value} · ` : ""}
-                {option.label}
+                {tr(option.label)}
               </Text>
             </Pressable>
           );
@@ -350,10 +358,11 @@ export function PawStyle({
         {allowsText(q, answer?.value) && (
           <View>
             <Text style={styles.caption}>
-              {q.textPrompt ?? "请补充说明"}（选填，最多 2000 字）
+              {tr(q.textPrompt ?? "请补充说明")}
+              {tr("（选填，最多 2000 字）")}
             </Text>
             <TextInput
-              accessibilityLabel={q.textPrompt ?? "请补充说明"}
+              accessibilityLabel={tr(q.textPrompt ?? "请补充说明")}
               multiline
               maxLength={2000}
               editable={!saving}
@@ -386,7 +395,9 @@ export function PawStyle({
       {conflict && (
         <View style={styles.card}>
           <Text style={styles.body}>
-            账号中有另一份更新的草稿。请选择要继续使用的答案，避免覆盖其他设备的填写。
+            {tr(
+              "账号中有另一份更新的草稿。请选择要继续使用的答案，避免覆盖其他设备的填写。",
+            )}
           </Text>
           {action("使用账号草稿", () => {
             persist(conflict);
@@ -416,15 +427,15 @@ export function PawStyle({
       )}
       {total === questions.length && (
         <Text style={styles.body}>
-          全部题目已填写，可暂存答案，也可返回修改。
+          {tr("全部题目已填写，可暂存答案，也可返回修改。")}
         </Text>
       )}
       <Text accessibilityLiveRegion="polite" style={styles.caption}>
-        {status}
+        {tr(status)}
       </Text>
       {!!error && (
         <Text accessibilityRole="alert" style={styles.error}>
-          {error}
+          {trMessage(error)}
         </Text>
       )}
     </View>
