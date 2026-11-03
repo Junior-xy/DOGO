@@ -134,6 +134,52 @@ try {
     .filter({ visible: true })
     .all())
     await expect(img).toHaveJSProperty("complete", true);
+  const hero = page.getByTestId("owner-home-hero").filter({ visible: true });
+  await expect(page.getByTestId("leashed-dog-icon")).toHaveCount(0);
+  await expect(
+    page.getByText("狗狗性格分析", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /预约一次散步/ })).toHaveCount(
+    0,
+  );
+  for (const width of [320, 1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const prompt = hero.getByText("预约一次散步？", { exact: true });
+    const url = page.url();
+    await prompt.click();
+    expect(page.url()).toBe(url);
+    const h = await hero.boundingBox(),
+      label = await prompt.boundingBox();
+    for (const name of ["Solo Walk", "Pack Walk"]) {
+      const option = hero.getByRole("button", { name, exact: true });
+      await expect(option).toHaveCount(1);
+      const box = await option.boundingBox();
+      expect(box.y).toBeGreaterThan(label.y + label.height);
+      expect(box.x).toBeGreaterThanOrEqual(h.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(h.x + h.width);
+      expect(box.y + box.height).toBeLessThanOrEqual(h.y + h.height);
+    }
+    expect(
+      (
+        await hero
+          .getByRole("button", { name: "Solo Walk", exact: true })
+          .getByTestId("paw-icon")
+          .boundingBox()
+      ).width,
+    ).toBe(24);
+    expect((await hero.getByTestId("pack-paws").boundingBox()).width).toBe(40);
+    await hero.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `test-results/home-options-${width}.png` });
+  }
+  for (const [name, kind] of [
+    ["Solo Walk", "solo"],
+    ["Pack Walk", "pack"],
+  ]) {
+    await hero.getByRole("button", { name, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/book\\?kind=${kind}`));
+    await page.goto(base + "/home");
+    await expect(hero.getByRole("button", { name, exact: true })).toBeVisible();
+  }
   await page.screenshot({
     path: "test-results/owner-polish-home.png",
     fullPage: false,
@@ -143,6 +189,10 @@ try {
     .filter({ visible: true })
     .click();
   await expect(page.getByText("我的狗狗档案", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("leashed-dog-icon")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "消息中心", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "提交资料申请", exact: true }),
   ).toHaveCount(0);

@@ -28,7 +28,7 @@ import {
   type Store,
   type Row,
 } from "@dogo/domain";
-import { PawIcon, PackPaws, LeashedDogIcon } from "./BrandIcons";
+import { PawIcon, PackPaws } from "./BrandIcons";
 import { BrandLogo } from "./BrandLogo";
 import { OwnerProfile } from "./OwnerProfile";
 import { PawStyleResults } from "./pawstyle/PawStyleResults";
@@ -736,24 +736,70 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      <View style={s.hero}>
-                        <View style={{ maxWidth: "65%", zIndex: 1 }}>
-                          <Text style={s.heroTag}>
-                            每一只狗狗，都值得被懂得
-                          </Text>
-                          <Text style={s.heroTitle}>
-                            一起出门，
-                            <Text style={{ color: c.green }}>遇见快乐。</Text>
-                          </Text>
-                          <Text style={s.body}>
-                            专业陪伴，认真照顾。
-                            <Text>把散步的时光，放心交给我们。</Text>
-                          </Text>
-                          <Button onPress={() => go("solo")}>
-                            预约一次散步 ↗
-                          </Button>
+                      <View
+                        style={[s.hero, { padding: 22 }]}
+                        testID="owner-home-hero"
+                      >
+                        <View style={s.heroIntro}>
+                          <View style={{ maxWidth: "65%", zIndex: 1 }}>
+                            <Text style={s.heroTag}>
+                              每一只狗狗，都值得被懂得
+                            </Text>
+                            <Text style={s.heroTitle}>
+                              一起出门，
+                              <Text style={{ color: c.green }}>遇见快乐。</Text>
+                            </Text>
+                            <Text style={s.body}>
+                              专业陪伴，认真照顾。
+                              <Text>把散步的时光，放心交给我们。</Text>
+                            </Text>
+                          </View>
+                          <BrandLogo
+                            size={150}
+                            style={[
+                              s.heroImage,
+                              {
+                                width: 150,
+                                height: 150,
+                                right: -50,
+                                bottom: 0,
+                              },
+                            ]}
+                          />
                         </View>
-                        <BrandLogo size={180} style={s.heroImage} />
+                        <View style={s.bookingPrompt}>
+                          <Text style={s.buttonText}>预约一次散步？</Text>
+                        </View>
+                        <View style={s.serviceGrid} testID="home-walk-options">
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Solo Walk"
+                            style={s.service}
+                            onPress={() => go("solo")}
+                          >
+                            <View style={{ height: 30, marginBottom: 8 }}>
+                              <PawIcon size={24} />
+                            </View>
+                            <Text style={s.serviceTitle}>Solo Walk</Text>
+                            <Text style={s.caption}>
+                              一对一专属陪伴{"\n"}按它的节奏慢慢走
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Pack Walk"
+                            style={[s.service, { backgroundColor: "#FFE8BE" }]}
+                            onPress={() => go("packs")}
+                          >
+                            <View style={{ height: 30, marginBottom: 8 }}>
+                              <PackPaws size={40} />
+                            </View>
+                            <Text style={s.serviceTitle}>Pack Walk</Text>
+                            <Text style={s.caption}>
+                              和新朋友一起出发{"\n"}人工审核，安心同行
+                            </Text>
+                          </Pressable>
+                        </View>
                       </View>
                       <View style={s.row}>
                         <Text style={s.h2}>我的小伙伴</Text>
@@ -801,36 +847,13 @@ export default function App() {
                       <Pressable onPress={() => begin()}>
                         <Card tint>
                           <Text style={s.eyebrow}>DOGO ti</Text>
-                          <Text style={s.h2}>记录它的日常小习惯。</Text>
+                          <Text style={s.h2}>狗狗性格分析</Text>
                           <Text style={s.body}>
                             从日常观察出发，填写问卷，随时保存和继续。
                           </Text>
                           <Text style={s.topLink}>填写 DOGO ti 问卷 →</Text>
                         </Card>
                       </Pressable>
-                      <View style={s.serviceGrid}>
-                        <Pressable style={s.service} onPress={() => go("solo")}>
-                          <View style={{ height: 52, marginBottom: 12 }}>
-                            <PawIcon size={38} />
-                          </View>
-                          <Text style={s.h2}>Solo Walk</Text>
-                          <Text style={s.caption}>
-                            一对一专属陪伴{"\n"}按它的节奏慢慢走
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          style={[s.service, { backgroundColor: "#FFE8BE" }]}
-                          onPress={() => go("packs")}
-                        >
-                          <View style={{ height: 52, marginBottom: 12 }}>
-                            <PackPaws />
-                          </View>
-                          <Text style={s.h2}>Pack Walk</Text>
-                          <Text style={s.caption}>
-                            和新朋友一起出发{"\n"}人工审核，安心同行
-                          </Text>
-                        </Pressable>
-                      </View>
                     </>
                   )}
                 </>
@@ -1871,7 +1894,6 @@ export default function App() {
                         </Text>
                         <Pill status={me?.role} />
                       </View>
-                      <LeashedDogIcon size={44} />
                     </View>
                     <Button secondary onPress={() => go("notifications")}>
                       消息中心
@@ -2161,11 +2183,27 @@ const s = StyleSheet.create({
     borderRadius: 12,
   },
   dogAvatar: { backgroundColor: "#F6EDDA", padding: 14, borderRadius: 18 },
-  serviceGrid: { flexDirection: "row", gap: 14 },
+  heroIntro: { position: "relative", minHeight: 220 },
+  bookingPrompt: {
+    backgroundColor: c.green,
+    borderRadius: 14,
+    padding: 15,
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 14,
+  },
+  serviceGrid: { flexDirection: "row", gap: 10 },
+  serviceTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: c.ink,
+    marginBottom: 6,
+  },
   service: {
     flex: 1,
-    padding: 20,
-    borderRadius: 22,
+    minWidth: 0,
+    padding: 14,
+    borderRadius: 18,
     backgroundColor: "#E9EFDA",
   },
   settingsSection: { paddingHorizontal: 12, paddingTop: 16, gap: 8 },
