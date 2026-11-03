@@ -97,15 +97,15 @@ try {
   ).toHaveCount(3);
   await expect(
     page.getByTestId("paw-icon").filter({ visible: true }),
-  ).toHaveCount(4);
+  ).toHaveCount(5);
   await expect(
     page
       .getByRole("tab", { name: "遛狗活动", exact: true })
-      .getByTestId("leashed-dog-icon"),
+      .getByTestId("paw-icon"),
   ).toBeVisible();
   const activityIcon = page
     .getByRole("tab", { name: "遛狗活动", exact: true })
-    .getByTestId("leashed-dog-icon");
+    .getByTestId("paw-icon");
   expect((await activityIcon.boundingBox()).width).toBe(20);
   const homeLabel = await page
     .getByText("首页", { exact: true })
@@ -267,7 +267,7 @@ try {
   }
   expect(errors).toEqual([]);
   console.log(
-    "Owner polish passed: branding, 1/3 paws, leash icon, profile priorities, portrait/results, collapsed settings, delete cancellation/persistence/order protection/selection recovery.",
+    "Owner polish passed: branding, 1/3 paws, activity paw icon, profile priorities, portrait/results, collapsed settings, delete cancellation/persistence/order protection/selection recovery.",
   );
 } catch (error) {
   console.log(await page.locator("body").innerText());

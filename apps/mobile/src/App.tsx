@@ -1992,7 +1992,8 @@ export default function App() {
             >
               <View style={s.navSymbol}>
                 {id === "activities" && !isWalker ? (
-                  <LeashedDogIcon
+                  <PawIcon
+                    size={20}
                     color={activeTab === id ? c.green : "#959D88"}
                   />
                 ) : (
